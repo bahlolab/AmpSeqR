@@ -1,5 +1,5 @@
 # AmpSeqR: an R package for amplicon deep sequencing data analysis
-https://github.com/bahlolab/ampseqr
+https://github.com/bahlolab/AmpSeqR
 
 AmpseqR is an R package for analysis of amplicon deep sequencing (AmpSeq) data generated on the Illumina platform. The pipeline offers various useful functions including Data pre-processing, Amplicon sequence variant (ASVs) estimation, Data post-processing, and Data visualization. Additionally, AmpseqR includes several parameters to filter noise reads and improve the accuracy of the detected haplotype.
 
