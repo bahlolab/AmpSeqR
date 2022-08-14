@@ -1,0 +1,66 @@
+Package: AmpSeqR
+Type: Package
+Title: Multi-locus Sequence Type Identificatino from Multiplexed Amplicon Deep Sequencing
+Version: 0.0.1
+Authors@R: 
+    c(person(given = "Jacob",
+           family = "Munro",
+           role = c("aut", "cre"),
+           email = "munro.j@wehi.edu.au",
+           comment = c(ORCID = "0000-0002-2751-0989")),
+      person(given = "Jiru",
+           family = "Han",
+           role = c("aut", "cre"),
+           email = "han.ji@wehi.edu.au",
+           comment = c(ORCID = "0000-0002-4884-1082"))
+Description: TBD.
+License: GPLv2
+Encoding: UTF-8
+LazyData: true
+ByteCompile: true
+biocViews:
+Imports: 
+    Biostrings,
+    ComplexHeatmap,
+    DECIPHER,
+    DT,
+    ape,
+    cowplot,
+    flextable,
+    furrr,
+    ggplot2,
+    ggstance,
+    ggtree,
+    gtools,
+    heatmaply,
+    htmltools,
+    pheatmap,
+    plotly,
+    plyr,
+    randomcoloR,
+    rmarkdown,
+    scales,
+    stringr,
+    tibble,
+    viridisLite,
+    withr,
+    readr,
+    dada2,
+    dplyr (>= 1.0.0),
+    future,
+    magrittr,
+    parallel,
+    purrr,
+    rlang,
+    ShortRead,
+    tidyr,
+    dendextend,
+    seriation,
+    digest,
+    VariantAnnotation,
+    S4Vectors,
+    GenomicRanges,
+    IRanges
+RoxygenNote: 7.2.1
+Suggests: 
+    testthat (>= 2.1.0)
