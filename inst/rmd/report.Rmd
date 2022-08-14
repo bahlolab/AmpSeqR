@@ -40,7 +40,7 @@ The `html report` include:
 
 ## Citation
 
-> https://github.com/bahlolab/ampseqr
+> https://github.com/bahlolab/AmpSeqR
 
 <br />
 
@@ -62,7 +62,7 @@ library(viridis)
 library(flextable)
 library(ggtree)
 library(ggstance)
-library(ampseqr)
+library(AmpSeqR)
 library(rmarkdown)
 library(magrittr)
 library(ape)
