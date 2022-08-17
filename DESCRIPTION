@@ -3,16 +3,21 @@ Type: Package
 Title: Multi-locus Sequence Type Identificatino from Multiplexed Amplicon Deep Sequencing
 Version: 0.0.1
 Authors@R: 
-    c(person(given = "Jacob",
-           family = "Munro",
-           role = c("aut", "cre"),
-           email = "munro.j@wehi.edu.au",
-           comment = c(ORCID = "0000-0002-2751-0989")),
-      person(given = "Jiru",
-           family = "Han",
-           role = c("aut", "cre"),
-           email = "han.ji@wehi.edu.au",
-           comment = c(ORCID = "0000-0002-4884-1082"))
+    c(person(given = "Jiru",
+             family = "Han",
+             role = c("cre", "aut"),
+             email = "han.ji@wehi.edu.au",
+             comment = c(ORCID = "0000-0002-4884-1082")),
+      person(given = "Jacob",
+             family = "Munro",
+             role = c("aut"),
+             email = "munro.j@wehi.edu.au",
+             comment = c(ORCID = "0000-0002-2751-0989")),
+      person(given = "Melanie",
+             family = "Bahlo",
+             role = c("ths"),
+             email = "bahlo@wehi.edu.au",
+             comment = c(ORCID = "0000-0001-5132-0774")))
 Description: TBD.
 License: GPLv2
 Encoding: UTF-8

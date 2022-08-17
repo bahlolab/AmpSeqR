@@ -10,15 +10,16 @@ demultiplex_reads(
   reads_1,
   reads_2,
   output_dir,
-  output_sub_dir,
+  output_sub_dir = file.path(output_dir, "demultiplex"),
   complete_only = TRUE,
   trim_bc = TRUE,
   trim_pr = TRUE,
   trim_right = 0L,
   chunk_n = 1e+06,
   overwrite = TRUE,
-  threads = 4L,
   primer_max_mismatch = 3L,
+  max_gap_1 = 0L,
+  max_gap_2 = 5L,
   degenerate_primers = TRUE,
   suffix_1 = "R1.fastq.gz",
   suffix_2 = "R2.fastq.gz"
@@ -49,9 +50,11 @@ demultiplex_reads(
 
 \item{overwrite}{(Optional). Default TRUE. If TRUE, overwrite output files already exist.}
 
-\item{threads}{(Optional). Default 4. Number of cluster nodes.}
-
 \item{primer_max_mismatch}{(Optional). Default 3. The maximum number of mismatches of the amplicon primer sequence.}
+
+\item{max_gap_1}{(Optional). Default 0. The maximum number of bases between left end of read and start of barcode sequence.}
+
+\item{max_gap_2}{(Optional). Default 5. The maximum number of bases between the barcode and the marker primer sequence.}
 
 \item{degenerate_primers}{(Optional). Default TRUE. If TRUE (the default), an IUPAC ambiguity code in the pattern can only match the same code in the subject, and vice versa. If FALSE, an IUPAC ambiguity code in the pattern can match any letter in the subject that is associated with the code, and vice versa. See Biostrings::vmatchPattern for more information.}
 
