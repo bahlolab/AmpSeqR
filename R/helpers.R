@@ -197,6 +197,28 @@ check_sample_manifest <- function(table) {
 #' @importFrom dplyr count pull group_by select distinct
 #' @importFrom rlang abort
 #' @importFrom stringr str_c
+check_sample_read_manifest <- function(table) {
+  req_cols <- c("sample_id", "reads_1", "reads_2")
+  arg_name <- "sample_manifest"
+  check_character_table(table, req_cols, arg_name)
+  
+  nmax <-
+    select(table, "sample_id", "reads_1", "reads_2") %>%
+    distinct() %>%
+    group_by(reads_1, reads_2) %>%
+    count() %>%
+    pull(n) %>%
+    max(na.rm = T)
+  
+  if (nmax > 1) {
+    abort(str_c(arg_name, "reads pairs must be associated with a single sample_id"))
+  }
+  
+}
+
+#' @importFrom dplyr count pull group_by select distinct
+#' @importFrom rlang abort
+#' @importFrom stringr str_c
 check_marker_info <- function(table, locus = FALSE) {
   req_cols <- c("marker_id", "primer_fwd", "primer_rev", "seq")
   arg_name <- "marker_info"
@@ -261,7 +283,7 @@ add_status <- function(tbl, new_status) {
 #' @param min_read_count (Optional). Default 1000. The minimum number of reads per sample per marker.
 #' @param n_sample (Optional). Default 10000. Downsamples an exact number of reads from paired end fastq files.
 #' @param seed (Optional). Default 1. Random seed for reproducible downsampling.
-#' @param threads (Optional). Default 1. The hostnames of workers (as a character vector) or the number of localhost workers (as a positive integer).
+#' @param threads (Optional). Default 2. The hostnames of workers (as a character vector) or the number of localhost workers (as a positive integer).
 #' @param count_col (Optional). Default NULL. The specified column to downsample reads.
 #'
 #' @return
@@ -276,7 +298,7 @@ downsample_reads <- function(read_table,
                              min_read_count = 1000,
                              n_sample = 10000,
                              seed = 1L,
-                             threads = 1L,
+                             threads = 2L,
                              count_col = NULL) {
   stopifnot(
     is_scalar_character(output_dir),
@@ -329,7 +351,7 @@ downsample_reads <- function(read_table,
       pmap(function(reads_1, reads_1_sub, reads_2, reads_2_sub, ...) {
         future::cluster(
           {
-            ampseqr:::downsample(
+            AmpSeqR:::downsample(
               reads_1 = reads_1,
               reads_2 = reads_2,
               reads_1_sub = reads_1_sub,

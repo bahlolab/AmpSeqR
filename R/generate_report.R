@@ -35,7 +35,7 @@ generate_report <- function(sample_manifest,
   }
   run <- list(sample_manifest, marker_info, demultiplexed, flt_reads, sub_reads, seq_ann_tbl, seq_flt_tbl, report_dir)
   names(run) <- c("sample_manifest", "marker_info", "demultiplexed", "flt_reads", "sub_reads", "seq_ann_tbl", "seq_flt_tbl", "report_dir")
-  rmd_file <- system.file(file.path("rmd", "report.Rmd"), package = "ampseqr", mustWork = TRUE)
+  rmd_file <- system.file(file.path("rmd", "report.Rmd"), package = "AmpSeqR", mustWork = TRUE)
   rmd_env <- list2env(run, envir = new.env())
   suppressMessages(suppressWarnings(rmarkdown::render(
     input = rmd_file,

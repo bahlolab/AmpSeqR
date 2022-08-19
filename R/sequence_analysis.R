@@ -201,7 +201,7 @@ mark_chimeras <- function(seq_tbl,
                 mutate(data = map(data, function(data) {
                   future::cluster(
                     {
-                      purrr::map(data, ampseqr:::mark_chimeras_mapper,
+                      purrr::map(data, AmpSeqR:::mark_chimeras_mapper,
                         max_breakpoints = max_breakpoints,
                         min_parent_ratio = min_parent_ratio
                       )

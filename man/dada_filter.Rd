@@ -35,5 +35,5 @@ filter folder: filtered and trimmed paired-end fastq files.
 filtered_reads.rds table: the filtered table in RDS format which includes sample_id, marker_id, n (number of demultiplexed reads), sample, info, reads_1 (the filtered and trimmed forward fastq file path), reads_2 (the filtered and trimmed reverse fastq file path), n_in (number of reads before filtering and trimming), n_out (number of reads after filtering and trimming).
 }
 \description{
-Translate dada2::filterAndTrim to ampseqr::dada_filter. Filter the poor-quality reads and trim low-quality bases.
+Translate dada2::filterAndTrim to AmpSeqR::dada_filter. Filter the poor-quality reads and trim low-quality bases.
 }

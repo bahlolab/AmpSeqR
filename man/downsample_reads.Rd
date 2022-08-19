@@ -11,7 +11,7 @@ downsample_reads(
   min_read_count = 1000,
   n_sample = 10000,
   seed = 1L,
-  threads = 1L,
+  threads = 2L,
   count_col = NULL
 )
 }
@@ -28,7 +28,7 @@ downsample_reads(
 
 \item{seed}{(Optional). Default 1. Random seed for reproducible downsampling.}
 
-\item{threads}{(Optional). Default 1. The hostnames of workers (as a character vector) or the number of localhost workers (as a positive integer).}
+\item{threads}{(Optional). Default 2. The hostnames of workers (as a character vector) or the number of localhost workers (as a positive integer).}
 
 \item{count_col}{(Optional). Default NULL. The specified column to downsample reads.}
 }

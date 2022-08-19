@@ -11,7 +11,7 @@
 #' @examples
 #' example_data <- get_ampseqr_example_data()
 get_ampseqr_example_data <- function() {
-  data_dir <- system.file(package = "ampseqr", "extdata")
+  data_dir <- system.file(package = "AmpSeqR", "extdata")
 
   reads_1 <- file.path(data_dir, "readsF.fastq.gz")
 

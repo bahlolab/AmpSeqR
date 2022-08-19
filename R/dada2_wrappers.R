@@ -1,6 +1,6 @@
 #' dada_filter
 #'
-#' Translate dada2::filterAndTrim to ampseqr::dada_filter. Filter the poor-quality reads and trim low-quality bases.
+#' Translate dada2::filterAndTrim to AmpSeqR::dada_filter. Filter the poor-quality reads and trim low-quality bases.
 #'
 #' @param read_table (Required). The demultiplexed read table includes: sample_id, marker_id, reads_1 (the forward read fastq file path), reads_2 (the reverse read fastq file path), n (number of demultiplexed reads), sample, info.
 #' @param output_dir (Required). The path to the output filtered table file.
