@@ -6,11 +6,7 @@ author:
   - Melanie Bahlo:bahlo@wehi.edu.au
 date: "`r Sys.Date()`"
 output: github_document
-vignette: >
-  %\VignetteIndexEntry{Vignette Title}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
-  
+
 ---
 
 ## `AmpSeqR`: an R package for amplicon deep sequencing studies
