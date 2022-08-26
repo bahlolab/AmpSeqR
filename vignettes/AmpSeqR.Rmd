@@ -10,6 +10,7 @@ vignette: >
   %\VignetteIndexEntry{Vignette Title}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+  
 ---
 
 ## `AmpSeqR`: an R package for amplicon deep sequencing studies
