@@ -90,18 +90,26 @@ sequence_filter <- function(seq_ann_tbl,
 
   # clean_homopolymers
   # minimum size for homopolymer in reference sequence
-  seq_ann_tbl <- clean_homopolymers(
+    if (is.null(min_homo_rep)) {
+    seq_ann_tbl
+  } else {
+    seq_ann_tbl <- clean_homopolymers(
     seq_ann_tbl = seq_ann_tbl,
     marker_info = marker_info,
     min_homo_rep = min_homo_rep
   )
+  }
 
   # clean terminal indels
-  seq_ann_tbl <- clean_terminal_indels(
+  if (is.null(terminal_region_len)) {
+    seq_ann_tbl
+  } else {
+    seq_ann_tbl <- clean_terminal_indels(
     seq_ann_tbl = seq_ann_tbl,
     marker_info = marker_info,
     terminal_region_len = terminal_region_len
   )
+  }
 
   seq_tbl_all <- suppressMessages(seq_ann_tbl %>%
     filter(status == "pass") %>%
