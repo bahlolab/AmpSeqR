@@ -25,4 +25,4 @@ example_data <- get_ampseqr_example_data()
 ```
 
 ## How do I use _AmpSeqR_?
-See the [introduction vignette](https://github.com/bahlolab/AmpSeqR/blob/main/vignettes/AmpSeqR.md) for usage examples.
+See the [introduction vignette](vignettes/AmpSeqR.md) for usage examples.
