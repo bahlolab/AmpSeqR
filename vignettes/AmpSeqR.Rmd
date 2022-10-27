@@ -1,7 +1,6 @@
 ---
 title: "AmpSeqR Introduction"
 author: Jiru Han, Jacob E. Munro, Melanie Bahlo
-date: "`r Sys.Date()`"
 output: github_document
 ---
 

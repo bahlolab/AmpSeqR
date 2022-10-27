@@ -1,7 +1,6 @@
 AmpSeqR Introduction
 ================
 Jiru Han, Jacob E. Munro, Melanie Bahlo
-2022-10-27
 
 ## `AmpSeqR`: an R package for amplicon deep sequencing studies
 
