@@ -1,12 +1,8 @@
 ---
 title: "AmpSeqR Introduction"
-author: 
-  - Jiru Han:han.ji@wehi.edu.au
-  - Jacob E. Munro:munro.j@wehi.edu.au
-  - Melanie Bahlo:bahlo@wehi.edu.au
+author: Jiru Han, Jacob E. Munro, Melanie Bahlo
 date: "`r Sys.Date()`"
 output: github_document
-
 ---
 
 ## `AmpSeqR`: an R package for amplicon deep sequencing studies
@@ -21,11 +17,13 @@ This document outlines the data format and key functions used by `AmpSeqR` for p
 
 ### Installation
 
-The `AmpSeqR` currently available to install from Github:
+`AmpSeqR` currently available to install from Github:
 
-```{r}
+```{r, eval=FALSE}
 # install using devtools packages
-devtools::install_github("bahlolab/AmpSeqR")
+if (!require(AmpSeqR)) {
+  devtools::install_github("bahlolab/AmpSeqR")
+}
 ```
 
 ### Key parameters in `AmpSeqR`
@@ -56,7 +54,7 @@ Var_He | 0.001 | The minimum expected heterozygosity of the variant
 
 The dataset consists of 5 _P. falciparum_ samples with defined mixtures (1:1, 1:10, 1:100, 1:500, 1:1000) of two _P. falciparum_ reference genomes Pf3D7 and PfDd2. We selected two amplicon markers, the _P. falciparum_ surface marker genes circumsporozoite protein (*_CSP_*) and thrombospondin-related anonymous protein (_TRAP_).
 
-```{r}
+```{r message=FALSE}
 library(AmpSeqR)
 example_data <- get_ampseqr_example_data()
 example_data$sample_manifest
@@ -81,8 +79,6 @@ reads_1 <- example_data$reads_1
 reads_2 <- example_data$reads_2
 sample_manifest <- example_data$sample_manifest
 marker_info <- example_data$marker_info
-# Set working directory
-setwd("PATH_TO_WORKING_DIRECTORY")
 # Create the analysis directory
 dir.create("./runs")
 run_dir <- "runs"
@@ -117,7 +113,7 @@ Before filtering and trimming the paired-end fastq files we can visualize the qu
 ```{r}
 # Visualize the quality profiles of the forward and reverse reads
 read_quality <- plot_quality(demultiplexed)
-read_quality
+read_quality$CSP
 ```
 
 The red line shows the mean quality score of all samples in each cycle. Color represents the proportion of reads of each quality score in each cycle.
@@ -256,7 +252,7 @@ The main file outputs for the function `sequence_filter` are:
 
 The data visualization step generates a comprehensive Rmarkdown report that contains various summary data visualizations and data summaries, such as quality checks, performed at both the individual/sample and amplicon level, amplicon haplotype sequence counts, haplotype diversity metrics of amplicon markers in the dataset, haplotype sequence visualization, haplotype tree generation, and principal component analysis. 
 
-```{r}
+```{r, eval=FALSE}
 # Data visualization
 generate_report(sample_manifest = sample_manifest,
                 marker_info = marker_info, 
@@ -277,20 +273,18 @@ The main file outputs for the function `generate_report` are:
 
 We also include the `process_run` function that calls all the functions, making it easy to get all results.
 
-```{r}
+```{r, eval=FALSE}
 # Data
 reads_1 <- example_data$reads_1
 reads_2 <- example_data$reads_2
 sample_manifest <- example_data$sample_manifest
 marker_info <- example_data$marker_info
-# Set working directory
-setwd("PATH_TO_WORKING_DIRECTORY")
 # Create the analysis directory
 process_run_dir <- "runs_process"
 dir.create("./runs_process")
 ```
 
-```{r}
+```{r, eval=FALSE}
 # Fast run
 process_run(reads_1 = reads_1,
             reads_2 = reads_2,
