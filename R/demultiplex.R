@@ -204,7 +204,7 @@ demultiplex_reads <- function(sample_manifest,
   on.exit(options(future.rng.onMisuse = future_rng_opt))
 
   workers <- list(
-    future::makeClusterPSOCK(workers = 1),
+    future::makeClusterPSOCK(workers = floor(future::availableCores()/2)),
     future::makeClusterPSOCK(workers = 1)
   )
   on.exit({ walk(workers, parallel::stopCluster) })
@@ -238,7 +238,8 @@ demultiplex_reads <- function(sample_manifest,
       {
         suppressWarnings(do.call(AmpSeqR:::thread_setup, a))
       },
-      workers = w
+      workers = w, 
+      globals = structure(TRUE, add = list(a = a, w = w))
     )
   }) %>%
     future::value() %>%
@@ -346,7 +347,8 @@ demultiplex_reads <- function(sample_manifest,
         {
           AmpSeqR:::thread_write(d)
         },
-        workers = w
+        workers = w, 
+        globals = structure(TRUE, add = list(d = d, w = w))
       )
     }) %>%
       future::value() %>%

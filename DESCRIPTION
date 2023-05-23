@@ -1,7 +1,7 @@
 Package: AmpSeqR
 Type: Package
 Title: Multi-locus Sequence Type Identificatino from Multiplexed Amplicon Deep Sequencing
-Version: 0.0.1
+Version: 0.0.1-1
 Authors@R: 
     c(person(given = "Jiru",
              family = "Han",
@@ -17,7 +17,11 @@ Authors@R:
              family = "Bahlo",
              role = c("ths"),
              email = "bahlo@wehi.edu.au",
-             comment = c(ORCID = "0000-0001-5132-0774")))
+             comment = c(ORCID = "0000-0001-5132-0774")), 
+      person(given = "Thomas",
+             family = "Obadia",
+             role = c("ctb"),
+             email = "tobadia@pasteur.fr"))
 Description: TBD.
 License: GPLv2
 Encoding: UTF-8
