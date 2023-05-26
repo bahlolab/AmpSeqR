@@ -360,7 +360,13 @@ downsample_reads <- function(read_table,
               seed = seed
             )
           },
-          workers = cluster
+          workers = cluster, 
+          globals = structure(TRUE, add = list(reads_1 = reads_1, 
+                                               reads_1_sub = reads_1_sub, 
+                                               reads_2 = reads_2, 
+                                               reads_2_sub = reads_2_sub, 
+                                               n_sample = n_sample, 
+                                               seed = seed))
         )
       }) %>%
       future::value()

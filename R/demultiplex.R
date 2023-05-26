@@ -252,7 +252,8 @@ demultiplex_reads <- function(sample_manifest,
           {
             AmpSeqR:::thread_read()
           },
-          workers = w
+          workers = w, 
+          globals = structure(TRUE, add = list(w = w))
         )
       }) %>%
       map_dbl(future::value)
@@ -272,7 +273,8 @@ demultiplex_reads <- function(sample_manifest,
           {
             AmpSeqR:::thread_demultiplex()
           },
-          workers = w
+          workers = w, 
+          globals = structure(TRUE, add = list(w = w))
         )
       }) %>%
       future::value()
