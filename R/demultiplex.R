@@ -61,6 +61,7 @@ demultiplex_marker_only <- function(sample_read_manifest,
 #' @param reads_2 (Required). The file path to the reverse fastq file from paired-end sequence data corresponding to those provided to the reads_1 argument. Compressed file formats such as .fastq.gz are supported.
 #' @param output_dir (Required). The path to the output demultiplexed read table file.
 #' @param output_sub_dir (Required). The path to the output demultiplexed files.
+#' @param use_absolute_paths (Required). Default to TRUE. If FALSE, paths to input and output .fastq.gz files will remain relative to the current working directory (useful in case the output is shared with other users so they can possibly continue running the pipeline without running into issues related to different storage mounts).
 #' @param complete_only (Optional). Default TRUE. If TRUE, only output complete fastq file.
 #' @param trim_bc (Optional). Default TRUE. If TRUE, trim sample barcodes.
 #' @param trim_pr (Optional). Default TRUE. If TRUE, trim amplicon primer sequence.
@@ -113,6 +114,7 @@ demultiplex_reads <- function(sample_manifest,
                               reads_2,
                               output_dir,
                               output_sub_dir = file.path(output_dir, 'demultiplex'),
+                              use_absolute_paths = TRUE,
                               complete_only = TRUE,
                               trim_bc = TRUE,
                               trim_pr = TRUE,
@@ -188,6 +190,10 @@ demultiplex_reads <- function(sample_manifest,
     dir.create(output_sub_dir, recursive = T)
   }
   output_sub_dir <- normalizePath(output_sub_dir)
+
+  if (!use_absolute_paths) {
+    output_sub_dir <- gsub(pattern = normalizePath(getwd()), replacement = ".", x = output_sub_dir, fixed = TRUE)
+  }
 
   # return table
   ret_tbl <-
