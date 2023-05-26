@@ -209,7 +209,8 @@ dada_seq_tbl <- function(read_table,
               {
                 dada2::derepFastq(rf)
               },
-              workers = cluster
+              workers = cluster, 
+              globals = structure(TRUE, add = list(rf = rf))
             )
           }) %>% map(future::value)) %>%
           unnest_legacy() %>%
@@ -232,7 +233,8 @@ dada_seq_tbl <- function(read_table,
                 err <- dada2::learnErrors(dr, verbose = 0)
                 dada2::dada(dr, err, verbose = 0)
               },
-              workers = cluster
+              workers = cluster, 
+              globals = structure(TRUE, add = list(dr = dr))
             )
           }) %>% map(future::value))
       } else {
