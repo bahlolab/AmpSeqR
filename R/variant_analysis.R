@@ -332,7 +332,7 @@ remove_variants <- function(seq_tbl, var_tbl, marker_info) {
 #' @importFrom magrittr "%>%"
 #' @importFrom Biostrings DNAStringSet
 #' @importFrom purrr map2_df pmap
-export_vcf <- function(var_tbl, marker_info, output_dir, compress = TRUE) {
+export_vcf <- function(var_tbl, marker_info, output_dir, use_absolute_paths = TRUE, compress = TRUE) {
   stopifnot(
     is.data.frame(var_tbl),
     is.data.frame(marker_info),
@@ -347,6 +347,10 @@ export_vcf <- function(var_tbl, marker_info, output_dir, compress = TRUE) {
     dir.create(output_dir)
   }
   output_dir <- normalizePath(output_dir)
+
+  if (!use_absolute_paths) {
+    output_sub_dir <- gsub(pattern = normalizePath(getwd()), replacement = ".", x = output_sub_dir, fixed = TRUE)
+  }
 
   if (!all(var_tbl$marker_id %in% marker_info$marker_id)) {
     abort("not all marker_ids in asv_tbl present in marker_info")

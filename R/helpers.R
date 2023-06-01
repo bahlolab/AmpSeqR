@@ -280,6 +280,7 @@ add_status <- function(tbl, new_status) {
 #' @param read_table (Required). The filtered read table includes: sample_id, marker_id, n (number of demultiplexed reads), sample, info, reads_1 (the filtered and trimmed forward fastq file path), reads_2 (the filtered and trimmed reverse fastq file path), n_in (number of reads before filtering and trimming), n_out (number of reads after filtering and trimming).
 #' @param output_dir (Required). The path to the output downsampled read table file.
 #' @param output_sub_dir (Required). The path to the output downsampled files.
+#' @param use_absolute_paths (Required). Default to TRUE. If FALSE, paths to input and output .fastq.gz files will remain relative to the current working directory (useful in case the output is shared with other users so they can possibly continue running the pipeline without running into issues related to different storage mounts).
 #' @param min_read_count (Optional). Default 1000. The minimum number of reads per sample per marker.
 #' @param n_sample (Optional). Default 10000. Downsamples an exact number of reads from paired end fastq files.
 #' @param seed (Optional). Default 1. Random seed for reproducible downsampling.
@@ -295,6 +296,7 @@ add_status <- function(tbl, new_status) {
 downsample_reads <- function(read_table,
                              output_dir,
                              output_sub_dir,
+                             use_absolute_paths = TRUE,
                              min_read_count = 1000,
                              n_sample = 10000,
                              seed = 1L,
@@ -330,6 +332,10 @@ downsample_reads <- function(read_table,
       dir.create(output_sub_dir, recursive = T)
     }
     output_sub_dir <- normalizePath(output_sub_dir)
+
+    if (!use_absolute_paths) {
+      output_sub_dir <- gsub(pattern = normalizePath(getwd()), replacement = ".", x = output_sub_dir, fixed = TRUE)
+    }
 
     cluster <- `if`(
       threads > 1,

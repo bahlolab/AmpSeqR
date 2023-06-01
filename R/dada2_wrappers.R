@@ -5,6 +5,7 @@
 #' @param read_table (Required). The demultiplexed read table includes: sample_id, marker_id, reads_1 (the forward read fastq file path), reads_2 (the reverse read fastq file path), n (number of demultiplexed reads), sample, info.
 #' @param output_dir (Required). The path to the output filtered table file.
 #' @param output_sub_dir (Required). The path to the output filtered files.
+#' @param use_absolute_paths (Required). Default to TRUE. If FALSE, paths to input and output .fastq.gz files will remain relative to the current working directory (useful in case the output is shared with other users so they can possibly continue running the pipeline without running into issues related to different storage mounts).
 #' @param max_exp_errors (Required). The same as in dada2::filterAndTrim().
 #' @param min_len (Optional). Default 25 (numeric vector). Remove reads with length less than minLen.
 #' @param marker_trim (Optional). Default NULL. If trimming is to be performed, marker_trim should be a data frame with three columns marker_id (character), trim_fwd (integer), and trim_rev (integer).
@@ -26,6 +27,7 @@
 dada_filter <- function(read_table,
                         output_dir,
                         output_sub_dir,
+                        use_absolute_paths = TRUE,
                         max_exp_errors = 1L,
                         min_len = 25L,
                         marker_trim = NULL,
@@ -57,6 +59,10 @@ dada_filter <- function(read_table,
     dir.create(output_sub_dir, recursive = T)
   }
   output_sub_dir <- normalizePath(output_sub_dir)
+
+  if (!use_absolute_paths) {
+    output_sub_dir <- gsub(pattern = normalizePath(getwd()), replacement = ".", x = output_sub_dir, fixed = TRUE)
+  }
 
   ret_table <-
     read_table %>%
