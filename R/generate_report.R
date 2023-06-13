@@ -27,9 +27,9 @@ generate_report <- function(sample_manifest,
                             report_output_dir,
                             browse_report = TRUE) {
   message("---- generating report ----")
-
+  
   report_dir <- report_output_dir
-
+  
   if (!dir.exists(report_dir)) {
     dir.create(report_dir)
   }
@@ -43,13 +43,13 @@ generate_report <- function(sample_manifest,
     output_file = str_c("Report.html"),
     envir = rmd_env
   )))
-
+  
   output_file <- file.path(report_dir, str_c("Report.html"))
   if (browse_report) {
     browseURL(path.expand(output_file))
   }
-
+  
   message("report save to \"", output_file, "\"")
-
+  
   return(invisible(output_file))
 }

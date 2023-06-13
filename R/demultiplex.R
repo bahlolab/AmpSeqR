@@ -27,10 +27,10 @@ demultiplex_marker_only <- function(sample_read_manifest,
     is.data.frame(marker_info),
     is_string(output_dir)
   )
-
+  
   check_sample_read_manifest(sample_read_manifest)
   check_marker_info(marker_info)
-
+  
   ret_tbl <-
     split(sample_read_manifest, sample_read_manifest$sample_id) %>%
     map_df(function(sample_row) {
@@ -47,7 +47,7 @@ demultiplex_marker_only <- function(sample_read_manifest,
                         ...)
     }) %>%
     write_rds(file.path(output_dir, "demultiplex.rds"))
-
+  
   return(ret_tbl)
 }
 
@@ -127,7 +127,7 @@ demultiplex_reads <- function(sample_manifest,
                               degenerate_primers = TRUE,
                               suffix_1 = "R1.fastq.gz",
                               suffix_2 = "R2.fastq.gz") {
-
+  
   # check args
   stopifnot(
     length(reads_1) >= 1L,
@@ -145,25 +145,25 @@ demultiplex_reads <- function(sample_manifest,
     is_scalar_character(suffix_1),
     is_scalar_character(suffix_2)
   )
-
-
+  
+  
   if (trim_pr && !trim_bc) {
     rlang::warn("trim_bc ignored as trim_pr == TRUE")
   }
-
+  
   check_sample_manifest(sample_manifest)
   check_marker_info(marker_info)
-
+  
   barcodes <- list(
     fwd = sample_manifest$barcode_fwd %>% unique() %>% DNAStringSet(),
     rev = sample_manifest$barcode_rev %>% unique() %>% DNAStringSet()
   )
-
+  
   primers <- list(
     fwd = marker_info$primer_fwd %>% DNAStringSet(),
     rev = marker_info$primer_rev %>% DNAStringSet()
   )
-
+  
   sample_manifest_2 <-
     sample_manifest %>%
     mutate(
@@ -171,7 +171,7 @@ demultiplex_reads <- function(sample_manifest,
       bc_index_2 = match(barcode_rev, as.character(barcodes$rev))
     ) %>%
     select(sample_id, bc_index_1, bc_index_2)
-
+  
   marker_info_2 <-
     marker_info %>%
     mutate(
@@ -179,22 +179,22 @@ demultiplex_reads <- function(sample_manifest,
       pr_index_2 = match(primer_rev, as.character(primers$rev))
     ) %>%
     select(marker_id, pr_index_1, pr_index_2)
-
+  
   marker_trim <-
     marker_info %>%
     mutate(trim_width = nchar(seq) - trim_right) %>%
     select(marker_id, trim_width)
-
+  
   # create output directory
   if (!dir.exists(output_sub_dir)) {
     dir.create(output_sub_dir, recursive = T)
   }
   output_sub_dir <- normalizePath(output_sub_dir)
-
+  
   if (!use_absolute_paths) {
     output_sub_dir <- gsub(pattern = normalizePath(getwd()), replacement = ".", x = output_sub_dir, fixed = TRUE)
   }
-
+  
   # return table
   ret_tbl <-
     tibble(
@@ -204,17 +204,17 @@ demultiplex_reads <- function(sample_manifest,
       reads_2 = character(),
       n = integer()
     )
-
+  
   future_rng_opt <- getOption('future.rng.onMisuse')
   options(future.rng.onMisuse = "ignore")
   on.exit(options(future.rng.onMisuse = future_rng_opt))
-
+  
   workers <- list(
     future::makeClusterPSOCK(workers = floor(future::availableCores()/2)),
     future::makeClusterPSOCK(workers = 1)
   )
   on.exit({ walk(workers, parallel::stopCluster) })
-
+  
   worker_args <- list(
     list(
       reads = reads_1,
@@ -237,7 +237,7 @@ demultiplex_reads <- function(sample_manifest,
       max_gap_2 = max_gap_2
     )
   )
-
+  
   # setup workers
   map2(workers, worker_args, function(w, a) {
     future::cluster(
@@ -250,7 +250,7 @@ demultiplex_reads <- function(sample_manifest,
   }) %>%
     future::value() %>%
     invisible()
-
+  
   while (TRUE) {
     nr <-
       map(workers, function(w) {
@@ -263,16 +263,16 @@ demultiplex_reads <- function(sample_manifest,
         )
       }) %>%
       map_dbl(future::value)
-
+    
     if (nr[1] != nr[2]) {
       walk(workers, parallel::stopCluster)
       rlang::abort("number or reads in reads_1 is not equal to number of reads in reads_2")
     }
-
+    
     if (nr[1] == 0) {
       break
     }
-
+    
     dm <-
       map(workers, function(w) {
         future::cluster(
@@ -284,7 +284,7 @@ demultiplex_reads <- function(sample_manifest,
         )
       }) %>%
       future::value()
-
+    
     # combine matched fwd and rev reads, split into sample markers
     dm_tbl <-
       full_join(dm[[1]], dm[[2]], by = "sr_index", suffix = c("_1", "_2")) %>%
@@ -304,7 +304,7 @@ demultiplex_reads <- function(sample_manifest,
         reads_2 = file.path(output_sub_dir, str_c(prefix, "_", suffix_2)) %>% replace(complete_only & (!is_complete), NA_character_),
         mode = if_else(reads_1 %in% ret_tbl$reads_1, "a", "w")
       )
-
+    
     # check for existing files in output directory
     existing_files <-
       dm_tbl %>%
@@ -314,7 +314,7 @@ demultiplex_reads <- function(sample_manifest,
       gather() %>%
       filter(file.exists(value)) %>%
       pull(value)
-
+    
     if (length(existing_files) > 0) {
       if (overwrite) {
         invisible(file.remove(existing_files))
@@ -322,7 +322,7 @@ demultiplex_reads <- function(sample_manifest,
         rlang::abort("some output files already exist and overwrite is set to FALSE")
       }
     }
-
+    
     write_table <-
       dm_tbl %>%
       filter(is_complete | (!complete_only)) %>%
@@ -348,7 +348,7 @@ demultiplex_reads <- function(sample_manifest,
       mutate(end = map2(pr_end, trim_width, ~ .x + .y)) %>%
       select(filename, mode, sr_index, start, end, set) %>%
       split.data.frame(.$set)
-
+    
     # write output in each thread
     map2(workers, write_table, function(w, d) {
       future::cluster(
@@ -361,7 +361,7 @@ demultiplex_reads <- function(sample_manifest,
     }) %>%
       future::value() %>%
       invisible()
-
+    
     # record results
     ret_tbl <-
       ret_tbl %>%
@@ -371,14 +371,14 @@ demultiplex_reads <- function(sample_manifest,
       left_join(sample_manifest %>% select(-barcode_fwd, -barcode_rev),
                 by = "sample_id")
   }
-
+  
   mutate(ret_tbl, success = !is.na(sample_id) & !is.na(marker_id)) %>%
     group_by(success) %>%
     summarise(n = sum(n, na.rm = TRUE)) %>%
     with(message(str_c("note:", n[success], "of", sum(n), "reads demultiplexed successfully.", sep = " ")))
-
+  
   write_rds(ret_tbl, file.path(output_dir, "demultiplex.rds"))
-
+  
   return(ret_tbl)
 }
 
@@ -413,7 +413,7 @@ thread_demultiplex <- function() {
     !is.null(getOption("ampseqr.max_gap_1")),
     !is.null(getOption("ampseqr.max_gap_2"))
   )
-
+  
   dm <- match_barcode_primer(
     dss = ShortRead::sread(getOption("ampseqr.sr")),
     barcodes = getOption("ampseqr.barcodes"),
@@ -440,9 +440,9 @@ thread_write <- function(write_tbl) {
 match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
                                  max_gap_1, max_gap_2, offset = 0L) {
   # TODO: allow non left anchored barcodes and primers
-
+  
   bc_width <- width(barcodes[1])
-
+  
   res <- tibble(
     sr_index = seq_along(dss),
     bc_index = NA_integer_,
@@ -453,7 +453,7 @@ match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
     pr_end = NA_integer_,
     width = width(dss)
   )
-
+  
   if (bc_width > 0) {
     # match barcodes
     sr_index <- res$sr_index[which(width(dss) >= bc_width)]
@@ -483,7 +483,7 @@ match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
     res$bc_start <- 0L
     res$bc_end <- 0L
   }
-
+  
   # match primers
   for (i in seq_along(primers)) {
     pr_width <- width(primers[i])
@@ -518,7 +518,7 @@ match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
     res$pr_end[sr_index[match]] <- match_coord$end + sub_range$start[match] - 1L
   }
   res$sr_index <- res$sr_index + offset
-
+  
   return(res)
 }
 
@@ -534,7 +534,7 @@ pwalk_write_reads <- function(reads, data) {
         end = end
       )
     })
-
+  
   return(TRUE)
 }
 
@@ -550,11 +550,11 @@ write_reads <- function(reads, filename, mode, start = NULL, end = NULL) {
     end <- pmin(width(reads), end)
     end <- replace(end, !is.finite(end), width(reads)[!is.finite(end)])
   }
-
+  
   stopifnot(
     length(start) == length(reads),
     length(start) == length(end)
   )
-
+  
   writeFastq(narrow(reads, start = start, end = end), file = filename, mode = mode)
 }

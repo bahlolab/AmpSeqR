@@ -8,30 +8,30 @@
 #' @importFrom tidyr chop
 call_vars <- function(seq_tbl, marker_info) {
   proc_vars <- process_vars(seq_tbl, marker_info)
-
+  
   vars_tbl <-
     proc_vars %>%
     mutate(var_data = map(var_data, "vars")) %>%
     unnest(var_data) %>%
     mutate(var_id = str_c(marker_id, var_id, sep = "_")) %>%
     select(marker_id, var_id, everything())
-
+  
   return(vars_tbl)
 }
 
 #' @export
 seq_mask_vars <- function(seq_tbl, marker_info, vars_mask) {
   check_table(vars_mask,
-    col_types = list(
-      marker_id = "character",
-      aln_pos = "integer",
-      type = "character"
-    ),
-    arg_name = "vars_mask"
+              col_types = list(
+                marker_id = "character",
+                aln_pos = "integer",
+                type = "character"
+              ),
+              arg_name = "vars_mask"
   )
-
+  
   proc_vars <- process_vars(seq_tbl, marker_info)
-
+  
   masked_seqs <-
     proc_vars %>%
     mutate(var_data = map(var_data, "aln_tbl")) %>%
@@ -44,7 +44,7 @@ seq_mask_vars <- function(seq_tbl, marker_info, vars_mask) {
       TRUE ~ "SNP"
     )) %>%
     left_join(mutate(vars_mask, mask = TRUE),
-      by = c("marker_id", "aln_pos", "type")
+              by = c("marker_id", "aln_pos", "type")
     ) %>%
     mutate(mask = replace_na(mask, FALSE)) %>%
     group_by(marker_id, seq_id) %>%
@@ -53,7 +53,7 @@ seq_mask_vars <- function(seq_tbl, marker_info, vars_mask) {
       masked = any(mask),
       .groups = "drop"
     )
-
+  
   seq_tbl_masked <-
     seq_tbl %>%
     select(sample_id, marker_id, seq_id, count) %>%
@@ -75,19 +75,19 @@ seq_mask_vars <- function(seq_tbl, marker_info, vars_mask) {
       min_ident_z = -Inf,
       mark_chimeras = FALSE
     )
-
+  
   return(seq_tbl_masked)
 }
 
 process_vars <- function(seq_tbl, marker_info) {
-
+  
   # check args
   check_seq_table(seq_tbl, seq_id = TRUE)
   check_marker_info(marker_info)
   if (!all(seq_tbl$marker_id %in% marker_info$marker_id)) {
     abort("not all marker_ids in asv_tbl present in marker_info")
   }
-
+  
   seq_tbl %>%
     select(marker_id, sequence, seq_id) %>%
     na.omit() %>%
@@ -118,9 +118,9 @@ call_variants <- function(ref_seq, var_seqs) {
     is(ref_seq, "DNAStringSet") && length(ref_seq) == 1,
     is(var_seqs, "DNAStringSet") && length(var_seqs) > 0
   )
-
+  
   n <- length(var_seqs)
-
+  
   aln_tbl <-
     DECIPHER::AlignSeqs(c(setNames(ref_seq, "ref"), var_seqs), verbose = FALSE) %>%
     as.matrix() %>%
@@ -131,16 +131,16 @@ call_variants <- function(ref_seq, var_seqs) {
       aln_pos = seq_along(pos)
     ) %>%
     pivot_longer(c(-ref, -pos, -aln_pos),
-      names_to = "seq_id",
-      values_to = "asv_base"
+                 names_to = "seq_id",
+                 values_to = "asv_base"
     ) %>%
     (function(x) {
       tibble(ref = "N", pos = 0L, aln_pos = 0L, asv_base = "N", seq_id = unique(x$seq_id)) %>%
         bind_rows(x)
     }) %>%
     arrange(seq_id, aln_pos)
-
-
+  
+  
   vars <- if (length(unique(aln_tbl$seq_id)) == 1 & all(aln_tbl$ref == aln_tbl$asv_base)) {
     return(NULL)
     aln_tbl <- NULL
@@ -154,19 +154,19 @@ call_variants <- function(ref_seq, var_seqs) {
             ins_grp_start = replace_na(lead(ref) == "-" & ref != "-", FALSE),
             ins_grp_end = replace_na(ref != "-" & lag(ref) == "-", FALSE),
             ins_id = if_else(cumsum(ins_grp_start) > cumsum(ins_grp_end),
-              cumsum(ins_grp_start),
-              NA_integer_
+                             cumsum(ins_grp_start),
+                             NA_integer_
             ),
             del_grp_start = replace_na(lead(asv_base) == "-" & asv_base != "-", FALSE),
             del_grp_end = replace_na(asv_base != "-" & lag(asv_base) == "-", FALSE),
             del_id = if_else(cumsum(del_grp_start) > cumsum(del_grp_end),
-              cumsum(del_grp_start),
-              NA_integer_
+                             cumsum(del_grp_start),
+                             NA_integer_
             ),
             is_snp = is.na(ins_id) & is.na(del_id) & ref != asv_base,
             snp_id = if_else(is_snp,
-              cumsum(is_snp),
-              NA_integer_
+                             cumsum(is_snp),
+                             NA_integer_
             )
           ) %>%
           select(-ins_grp_start, -ins_grp_end, -del_grp_start, -del_grp_end, -is_snp) %>%
@@ -203,8 +203,8 @@ call_variants <- function(ref_seq, var_seqs) {
       select(var_id, everything()) %>%
       arrange(pos, var_id)
   }
-
-
+  
+  
   # find del sites to replace allele with '*'
   if (any(vars$type == "DEL")) {
     fixed <-
@@ -230,7 +230,7 @@ call_variants <- function(ref_seq, var_seqs) {
             }
           })
       })
-
+    
     if (nrow(fixed) > 0) {
       vars <-
         anti_join(vars, fixed, by = "var_id") %>%
@@ -238,7 +238,7 @@ call_variants <- function(ref_seq, var_seqs) {
         arrange(pos, var_id)
     }
   }
-
+  
   return(list(vars = vars, aln_tbl = aln_tbl))
 }
 
@@ -250,18 +250,18 @@ calc_var_stats <- function(seq_tbl, var_tbl) {
   # check args
   check_var_table(var_tbl)
   check_asv_table(seq_tbl, check_count = TRUE)
-
+  
   smry_1 <-
     seq_tbl %>%
     select(sample_id, marker_id, seq_id, count) %>%
     inner_join(var_tbl %>% select(marker_id, var_id, gt_data) %>% unnest(gt_data),
-      by = c("marker_id", "seq_id")
+               by = c("marker_id", "seq_id")
     ) %>%
     group_by(sample_id, marker_id, var_id, genotype) %>%
     summarise(count = sum(count), .groups = "drop_last") %>%
     mutate(sm_freq = count / sum(count))
-
-
+  
+  
   samplewise <-
     smry_1 %>%
     summarise(
@@ -272,7 +272,7 @@ calc_var_stats <- function(seq_tbl, var_tbl) {
       .groups = "drop"
     ) %>%
     mutate(MAF = replace_na(MAF, 0))
-
+  
   varwise <-
     smry_1 %>%
     group_by(marker_id, var_id, genotype) %>%
@@ -290,23 +290,23 @@ calc_var_stats <- function(seq_tbl, var_tbl) {
     ) %>%
     mutate(MAF = replace_na(MAF, 0)) %>%
     left_join(samplewise %>%
-      group_by(marker_id, var_id) %>%
-      summarise(
-        sample_med_MAF = median(MAF),
-        sample_med_exp_het = median(exp_het),
-        .groups = "drop"
-      ),
-    by = c("marker_id", "var_id")
+                group_by(marker_id, var_id) %>%
+                summarise(
+                  sample_med_MAF = median(MAF),
+                  sample_med_exp_het = median(exp_het),
+                  .groups = "drop"
+                ),
+              by = c("marker_id", "var_id")
     )
-
+  
   return(list(
     varwise = inner_join(select(var_tbl, var_id, pos, aln_pos, type),
-      varwise,
-      by = "var_id"
+                         varwise,
+                         by = "var_id"
     ),
     samplewise = inner_join(select(var_tbl, var_id, pos, aln_pos, type),
-      samplewise,
-      by = "var_id"
+                            samplewise,
+                            by = "var_id"
     )
   ))
 }
@@ -319,7 +319,7 @@ remove_variants <- function(seq_tbl, var_tbl, marker_info) {
     is_scalar_character(output_dir),
     is_bool(compress)
   )
-
+  
   check_seq_table(seq_tbl)
   check_var_table(var_tbl)
   check_marker_info(marker_info)
@@ -339,44 +339,44 @@ export_vcf <- function(var_tbl, marker_info, output_dir, use_absolute_paths = TR
     is_scalar_character(output_dir),
     is_bool(compress)
   )
-
+  
   check_var_table(var_tbl)
   check_marker_info(marker_info, locus = TRUE)
-
+  
   if (!file.exists(output_dir)) {
     dir.create(output_dir)
   }
   output_dir <- normalizePath(output_dir)
-
+  
   if (!use_absolute_paths) {
     output_sub_dir <- gsub(pattern = normalizePath(getwd()), replacement = ".", x = output_sub_dir, fixed = TRUE)
   }
-
+  
   if (!all(var_tbl$marker_id %in% marker_info$marker_id)) {
     abort("not all marker_ids in asv_tbl present in marker_info")
   }
-
+  
   res <-
     var_tbl %>%
     split.data.frame(.$marker_id) %>%
     map2_df(names(.), ., function(marker_id, data) {
       vcf_fn <- file.path(output_dir, str_c(marker_id, ".vcf", sep = ""))
-
+      
       locus <- marker_info %>% dplyr::slice(first(which(marker_id == !!marker_id)))
-
+      
       rowRanges <- GenomicRanges::GRanges(
         locus$chrom,
         IRanges::IRanges(start = locus$start + data$pos - 1L, width = 1L)
       )
-
+      
       seq_ids <- data$gt_data %>%
         map("seq_id") %>%
         unlist() %>%
         sort() %>%
         unique()
-
+      
       colData <- S4Vectors::DataFrame(Samples = seq_along(seq_ids), row.names = seq_ids)
-
+      
       header <-
         VariantAnnotation::VCFHeader(
           samples = seq_ids,
@@ -393,7 +393,7 @@ export_vcf <- function(var_tbl, marker_info, output_dir, use_absolute_paths = TR
             )
           )
         )
-
+      
       geno <-
         data %>%
         pmap(function(var_id, gt_data, ...) {
@@ -409,7 +409,7 @@ export_vcf <- function(var_tbl, marker_info, output_dir, use_absolute_paths = TR
         }) %>%
         do.call("rbind", .) %>%
         S4Vectors::SimpleList(GT = .)
-
+      
       fixed <-
         with(
           data,
@@ -420,7 +420,7 @@ export_vcf <- function(var_tbl, marker_info, output_dir, use_absolute_paths = TR
             FILTER = "."
           )
         )
-
+      
       vcf <- VariantAnnotation::VCF(
         rowRanges = rowRanges,
         colData = colData,
@@ -431,6 +431,6 @@ export_vcf <- function(var_tbl, marker_info, output_dir, use_absolute_paths = TR
       VariantAnnotation::writeVcf(vcf, vcf_fn, index = compress)
       tibble(marker_id = marker_id, vcf_filename = str_c(vcf_fn, if_else(compress, ".bgz", ""), sep = ""))
     })
-
+  
   return(res)
 }
