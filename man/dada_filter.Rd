@@ -8,6 +8,7 @@ dada_filter(
   read_table,
   output_dir,
   output_sub_dir,
+  use_absolute_paths = TRUE,
   max_exp_errors = 1L,
   min_len = 25L,
   marker_trim = NULL,
@@ -20,6 +21,8 @@ dada_filter(
 \item{output_dir}{(Required). The path to the output filtered table file.}
 
 \item{output_sub_dir}{(Required). The path to the output filtered files.}
+
+\item{use_absolute_paths}{(Required). Default to TRUE. If FALSE, paths to input and output .fastq.gz files will remain relative to the current working directory (useful in case the output is shared with other users so they can possibly continue running the pipeline without running into issues related to different storage mounts).}
 
 \item{max_exp_errors}{(Required). The same as in dada2::filterAndTrim().}
 

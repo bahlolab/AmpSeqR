@@ -8,6 +8,7 @@ downsample_reads(
   read_table,
   output_dir,
   output_sub_dir,
+  use_absolute_paths = TRUE,
   min_read_count = 1000,
   n_sample = 10000,
   seed = 1L,
@@ -21,6 +22,8 @@ downsample_reads(
 \item{output_dir}{(Required). The path to the output downsampled read table file.}
 
 \item{output_sub_dir}{(Required). The path to the output downsampled files.}
+
+\item{use_absolute_paths}{(Required). Default to TRUE. If FALSE, paths to input and output .fastq.gz files will remain relative to the current working directory (useful in case the output is shared with other users so they can possibly continue running the pipeline without running into issues related to different storage mounts).}
 
 \item{min_read_count}{(Optional). Default 1000. The minimum number of reads per sample per marker.}
 
