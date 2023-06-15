@@ -11,7 +11,6 @@ demultiplex_reads(
   reads_2,
   output_dir,
   output_sub_dir = file.path(output_dir, "demultiplex"),
-  use_absolute_paths = TRUE,
   complete_only = TRUE,
   trim_bc = TRUE,
   trim_pr = TRUE,
@@ -38,8 +37,6 @@ demultiplex_reads(
 \item{output_dir}{(Required). The path to the output demultiplexed read table file.}
 
 \item{output_sub_dir}{(Required). The path to the output demultiplexed files.}
-
-\item{use_absolute_paths}{(Required). Default to TRUE. If FALSE, paths to input and output .fastq.gz files will remain relative to the current working directory (useful in case the output is shared with other users so they can possibly continue running the pipeline without running into issues related to different storage mounts).}
 
 \item{complete_only}{(Optional). Default TRUE. If TRUE, only output complete fastq file.}
 
