@@ -75,6 +75,6 @@ Imports:
     S4Vectors,
     GenomicRanges,
     IRanges
-RoxygenNote: 7.2.3
+RoxygenNote: 7.2.1
 Suggests: 
     testthat (>= 2.1.0)
