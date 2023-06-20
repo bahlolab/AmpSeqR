@@ -204,7 +204,7 @@ demultiplex_reads <- function(sample_manifest,
   on.exit(options(future.rng.onMisuse = future_rng_opt))
   
   workers <- list(
-    future::makeClusterPSOCK(workers = floor(future::availableCores()/2)),
+    future::makeClusterPSOCK(workers = 1),
     future::makeClusterPSOCK(workers = 1)
   )
   on.exit({ walk(workers, parallel::stopCluster) })
