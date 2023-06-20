@@ -43,10 +43,10 @@ annotate_seq_tbl <- function(seq_tbl,
     is_scalar_double(min_ident) || is.null(min_ident),
     is_scalar_double(min_ident_z) || is.null(min_ident_z)
   )
-  
+
   check_seq_table(seq_tbl)
   check_marker_info(marker_info)
-  
+
   seq_tbl_clean <-
     seq_tbl %>%
     # annotate low_sample_count
@@ -68,20 +68,20 @@ annotate_seq_tbl <- function(seq_tbl,
     add_status(., if_else(.$count >= min_asv_count, "pass", "low_asv_count")) %>%
     add_status(., if_else(.$sample_asv_freq >= min_asv_freq, "pass", "low_asv_freq")) %>%
     select(-sample_asv_freq)
-  
+
   if (mark_chimeras) {
     seq_tbl_clean <-
       mark_chimeras(seq_tbl_clean,
-                    threads = threads,
-                    max_breakpoints = max_breakpoints,
-                    min_parent_ratio = min_parent_ratio
+        threads = threads,
+        max_breakpoints = max_breakpoints,
+        min_parent_ratio = min_parent_ratio
       )
   }
-  
+
   if (is.null(output_dir) == FALSE) {
     write_rds(seq_tbl_clean, paste(output_dir, "/seq_ann_tbl.rds", sep = ""))
   }
-  
+
   return(seq_tbl_clean)
 }
 
@@ -96,7 +96,6 @@ calc_seq_ident <- function(seq_tbl, marker_info,
                            threads = 1L,
                            min_ident = 0.75,
                            min_ident_z = -3) {
-  
   # check args
   stopifnot(
     is.data.frame(seq_tbl),
@@ -105,10 +104,10 @@ calc_seq_ident <- function(seq_tbl, marker_info,
     is_scalar_double(min_ident) || is.null(min_ident),
     is_scalar_double(min_ident_z) || is.null(min_ident_z)
   )
-  
+
   check_seq_table(seq_tbl)
   check_marker_info(marker_info)
-  
+
   # remove any missing reads
   ident_row <-
     seq_tbl %>%
@@ -127,27 +126,27 @@ calc_seq_ident <- function(seq_tbl, marker_info,
     select(row, ident) %>%
     unnest(c(row, ident)) %>%
     unnest(row)
-  
+
   ident_tbl <-
     mutate(seq_tbl, ident = NA_real_) %>%
     mutate(ident = replace(ident, ident_row$row, ident_row$ident)) %>%
     group_by(marker_id) %>%
     mutate(ident_z = c(scale(replace(ident, ident < min_ident, NA_real_)))) %>%
     ungroup()
-  
+
   if (!is.null(min_ident)) {
     ident_tbl <-
       ident_tbl %>%
       add_status(if_else(ident_tbl$ident < min_ident, "low_ident", "pass"))
   }
-  
+
   if (!is.null(min_ident_z)) {
     ident_tbl <-
       ident_tbl %>%
       add_status(if_else(ident_tbl$ident_z < min_ident_z, "low_ident_z", "pass"))
   }
-  
-  
+
+
   return(ident_tbl)
 }
 #' @export
@@ -162,7 +161,6 @@ mark_chimeras <- function(seq_tbl,
                           max_breakpoints = 3L,
                           min_parent_ratio = 1.5,
                           pass_only = TRUE) {
-  
   # check args
   stopifnot(
     is.data.frame(seq_tbl),
@@ -171,15 +169,15 @@ mark_chimeras <- function(seq_tbl,
     is_scalar_double(min_parent_ratio) && min_parent_ratio > 1,
     is_bool(pass_only)
   )
-  
+
   check_seq_table(seq_tbl)
-  
+
   cluster <- `if`(
     threads > 1,
     future::makeClusterPSOCK(workers = threads),
     NULL
   )
-  
+
   chimeric <-
     seq_tbl %>%
     mutate(row = seq_len(n())) %>%
@@ -202,21 +200,23 @@ mark_chimeras <- function(seq_tbl,
                   future::cluster(
                     {
                       purrr::map(data, AmpSeqR:::mark_chimeras_mapper,
-                                 max_breakpoints = max_breakpoints,
-                                 min_parent_ratio = min_parent_ratio
+                        max_breakpoints = max_breakpoints,
+                        min_parent_ratio = min_parent_ratio
                       )
                     },
-                    workers = cluster, 
-                    globals = structure(TRUE, add = list(data = data, 
-                                                         max_breakpoints = max_breakpoints, 
-                                                         min_parent_ratio = min_parent_ratio))
+                    workers = cluster,
+                    globals = structure(TRUE, add = list(
+                      data = data,
+                      max_breakpoints = max_breakpoints,
+                      min_parent_ratio = min_parent_ratio
+                    ))
                   )
                 }) %>% map(future::value)) %>%
                 unchop(-group) %>%
                 select(-group),
               mutate(y, data = map(data, mark_chimeras_mapper,
-                                   max_breakpoints = max_breakpoints,
-                                   min_parent_ratio = min_parent_ratio
+                max_breakpoints = max_breakpoints,
+                min_parent_ratio = min_parent_ratio
               ))
             )
           }) %>%
@@ -226,13 +226,13 @@ mark_chimeras <- function(seq_tbl,
         integer(0)
       )
     })
-  
+
   if (threads > 1) parallel::stopCluster(cluster)
-  
+
   chim_tbl <-
     seq_tbl %>%
     add_status(if_else(seq_len(nrow(seq_tbl)) %in% chimeric, "chimera", "pass"))
-  
+
   return(chim_tbl)
 }
 #' @export
@@ -263,33 +263,33 @@ is_chimeric <- function(subject, pool, max_breakpoints = 2L) {
     is(pool, "DNAStringSet") && length(pool) > 1,
     is_scalar_integerish(max_breakpoints) && max_breakpoints >= 1L
   )
-  
+
   if (any(subject == pool)) {
     rlang::warn("putative chimeric subject sequence contained in sequence pool")
     return(TRUE)
   }
-  
+
   if (length(pool) > 2) {
     if (is_chimeric(subject, pool[seq_len(length(pool) - 1)])) {
       return(TRUE)
     }
   }
-  
+
   n_par <- length(pool)
-  
+
   aln_mat <-
     DECIPHER::AlignSeqs(c(subject, pool), verbose = FALSE) %>%
     as.matrix() %>%
     (function(x) {
       x[, !map_lgl(seq_len(ncol(x)), function(i) all(x[1, i] == x[-1, i])), drop = FALSE]
     })
-  
+
   is_unique <- map_lgl(seq_len(ncol(aln_mat)), function(i) !any(aln_mat[1, i] == aln_mat[-1, i]))
-  
+
   if (any(is_unique)) {
     return(FALSE)
   }
-  
+
   # internal function used by is_chimera - note that aln_mat must be defined in calling env
   # depth first search for possible chimeras
   is_chimera_recursive <- function(pos, path) {
@@ -311,7 +311,7 @@ is_chimeric <- function(subject, pool, max_breakpoints = 2L) {
     }
     return(FALSE)
   }
-  
+
   return(is_chimera_recursive(pos = 0L, path = integer()))
 }
 #' @export
