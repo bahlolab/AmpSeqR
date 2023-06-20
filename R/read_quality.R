@@ -20,7 +20,7 @@ summarise_read_quality <- function(fwd_fqs, rev_fqs, num = 50000) {
     group_by(Direction, Cycle) %>%
     mutate(Prop = Count / sum(Count, na.rm = T)) %>%
     ungroup()
-  
+
   smry2 <-
     smry1 %>%
     group_by(Direction, Cycle) %>%
@@ -38,7 +38,7 @@ summarise_read_quality <- function(fwd_fqs, rev_fqs, num = 50000) {
       "Direction"
     ) %>%
     mutate(PropReadLen = Total / nReads)
-  
+
   list(denisty_by_pos_and_qual = smry1, summary_by_pos = smry2)
 }
 #' @export
@@ -71,7 +71,7 @@ plot_quality_profile <- function(reads_fwd, reads_rev, title) {
     scale_fill_continuous(high = "gray15", low = "gray75", limits = c(0, 1)) +
     facet_wrap(~Direction, nrow = 1) +
     theme(axis.text.x = element_blank(), axis.title.x = element_blank(), axis.ticks.x = element_blank())
-  
+
   p2 <-
     summary_by_pos %>%
     ggplot() +
@@ -82,11 +82,11 @@ plot_quality_profile <- function(reads_fwd, reads_rev, title) {
       axis.title.y = element_blank(), axis.ticks.y = element_blank(), legend.position = "none",
       strip.background = element_blank(), strip.text = element_blank()
     )
-  
-  
+
+
   cowplot::plot_grid(cowplot::ggdraw() + cowplot::draw_label(paste0("Quality profile - ", title)),
-                     p1, p2,
-                     ncol = 1, rel_heights = c(0.05, 0.80, 0.15), align = "v", axis = "lr"
+    p1, p2,
+    ncol = 1, rel_heights = c(0.05, 0.80, 0.15), align = "v", axis = "lr"
   )
 }
 

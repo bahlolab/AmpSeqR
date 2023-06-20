@@ -12,14 +12,14 @@
 #' example_data <- get_ampseqr_example_data()
 get_ampseqr_example_data <- function() {
   data_dir <- system.file(package = "AmpSeqR", "extdata")
-  
+
   reads_1 <- file.path(data_dir, "readsF.fastq.gz")
-  
+
   reads_2 <- file.path(data_dir, "readsR.fastq.gz")
-  
+
   sample_manifest <- readr::read_csv(file.path(data_dir, "sample_manifest.csv"), col_types = readr::cols())
-  
+
   marker_info <- readr::read_csv(file.path(data_dir, "marker_info.csv"), col_types = readr::cols(start = readr::col_integer()))
-  
+
   as.list(environment())
 }

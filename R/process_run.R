@@ -78,14 +78,14 @@ process_run <- function(reads_1,
                         var_maf = 0.001,
                         var_he = 0.001) {
   message("---- processing run ----")
-  
-  
+
+
   suppressWarnings(if (!dir.exists(run_dir)) {
     dir.create(run_dir)
   })
-  
+
   message("---- demultiplexing----")
-  
+
   demultiplexed <- demultiplex_reads(
     sample_manifest = sample_manifest,
     marker_info = marker_info,
@@ -94,18 +94,18 @@ process_run <- function(reads_1,
     output_dir = run_dir,
     output_sub_dir = file.path(run_dir, "demultiplex")
   )
-  
+
   message("---- filter and trim ----")
-  
+
   flt_reads <- demultiplexed %>%
     dada_filter(
       output_dir = run_dir,
       output_sub_dir = file.path(run_dir, "filter")
     )
-  
-  
+
+
   message("---- downsampling ----")
-  
+
   sub_reads <- flt_reads %>%
     downsample_reads(
       output_dir = run_dir,
@@ -115,13 +115,13 @@ process_run <- function(reads_1,
       count_col = "n_out",
       threads = 8
     )
-  
-  
+
+
   message("---- ASV estimation ----")
-  
+
   seq_tbl <- sub_reads %>%
     dada_seq_tbl(output_dir = run_dir)
-  
+
   # annotate sequence variants
   seq_ann_tbl <- seq_tbl %>%
     annotate_seq_tbl(
@@ -135,9 +135,9 @@ process_run <- function(reads_1,
       max_breakpoints = max_breakpoints,
       min_parent_ratio = min_parent_ratio
     )
-  
+
   message("---- filtering haplotype sequence ----")
-  
+
   seq_flt_tbl <- sequence_filter(
     seq_ann_tbl = seq_ann_tbl,
     sample_manifest = sample_manifest,
@@ -153,10 +153,10 @@ process_run <- function(reads_1,
     var_maf = var_maf,
     var_he = var_he
   )
-  
-  
+
+
   message("---- generating report ----")
-  
+
   generate_report(
     sample_manifest = sample_manifest,
     marker_info = marker_info,
