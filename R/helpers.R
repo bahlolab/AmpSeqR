@@ -1,4 +1,3 @@
-
 format_int <- function(x, min_width = 1L, na_str = NA_character_) {
   stopifnot(rlang::is_integerish(x))
 
@@ -201,7 +200,7 @@ check_sample_read_manifest <- function(table) {
   req_cols <- c("sample_id", "reads_1", "reads_2")
   arg_name <- "sample_manifest"
   check_character_table(table, req_cols, arg_name)
-  
+
   nmax <-
     select(table, "sample_id", "reads_1", "reads_2") %>%
     distinct() %>%
@@ -209,11 +208,10 @@ check_sample_read_manifest <- function(table) {
     count() %>%
     pull(n) %>%
     max(na.rm = T)
-  
+
   if (nmax > 1) {
     abort(str_c(arg_name, "reads pairs must be associated with a single sample_id"))
   }
-  
 }
 
 #' @importFrom dplyr count pull group_by select distinct
@@ -360,7 +358,15 @@ downsample_reads <- function(read_table,
               seed = seed
             )
           },
-          workers = cluster
+          workers = cluster,
+          globals = structure(TRUE, add = list(
+            reads_1 = reads_1,
+            reads_1_sub = reads_1_sub,
+            reads_2 = reads_2,
+            reads_2_sub = reads_2_sub,
+            n_sample = n_sample,
+            seed = seed
+          ))
         )
       }) %>%
       future::value()

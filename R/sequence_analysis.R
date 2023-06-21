@@ -96,7 +96,6 @@ calc_seq_ident <- function(seq_tbl, marker_info,
                            threads = 1L,
                            min_ident = 0.75,
                            min_ident_z = -3) {
-
   # check args
   stopifnot(
     is.data.frame(seq_tbl),
@@ -162,7 +161,6 @@ mark_chimeras <- function(seq_tbl,
                           max_breakpoints = 3L,
                           min_parent_ratio = 1.5,
                           pass_only = TRUE) {
-
   # check args
   stopifnot(
     is.data.frame(seq_tbl),
@@ -206,7 +204,12 @@ mark_chimeras <- function(seq_tbl,
                         min_parent_ratio = min_parent_ratio
                       )
                     },
-                    workers = cluster
+                    workers = cluster,
+                    globals = structure(TRUE, add = list(
+                      data = data,
+                      max_breakpoints = max_breakpoints,
+                      min_parent_ratio = min_parent_ratio
+                    ))
                   )
                 }) %>% map(future::value)) %>%
                 unchop(-group) %>%

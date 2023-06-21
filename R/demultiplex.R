@@ -1,20 +1,18 @@
-
-
 #' Demultiplex paired-end FASTQ file by marker only
 #'
 #' Demultiplex the paired-end FASTQ reads (demultiplexed by sample) and assigns the sequence to each marker.
-#' 
+#'
 #' @param sample_read_manifest (Required). The sample reads file. The file should include sample_id, reads_1 (Forward fastq filepaths and fastq filenames have format: SAMPLENAME_R1.fastq.gz), reads_2 (Reverse fastq filepaths and fastq filenames have format: SAMPLENAME_R2.fastq.gz), sample (sample name, can be the same as sample_id), info (e.g., sample type).
 #' @param marker_info (Required). The target amplicon file. The file should include marker_id, primer_fwd, primer_rev, seq (reference sequence), chrom (chromosome), start (reference sequence start position), end (reference sequence end position).
 #' @param output_dir (Required). The path to the output demultiplexed read table file.
 #' @param ... Other arguments passed to AmpSeqR::demultiplex_reads.
 #'
 #' @return
-#' 
+#'
 #' demultiplex folder: demultiplexed paired-end fastq files.
-#' 
+#'
 #' demultiplex.rds: the demultiplexed table in RDS format which includes sample_id, marker_id, reads_1 (the forward read fastq file path), reads_2 (the reverse read fastq file path), n (number of demultiplexed reads), sample, info.
-#' 
+#'
 #' @export
 #'
 demultiplex_marker_only <- function(sample_read_manifest,
@@ -37,14 +35,18 @@ demultiplex_marker_only <- function(sample_read_manifest,
       manifest <-
         sample_row %>%
         select(-reads_1, -reads_2) %>%
-        mutate(barcode_fwd = '',
-               barcode_rev = '')
-      demultiplex_reads(sample_manifest = manifest,
-                        marker_info = marker_info,
-                        reads_1 = sample_row$reads_1,
-                        reads_2 = sample_row$reads_2,
-                        output_dir = output_dir,
-                        ...)
+        mutate(
+          barcode_fwd = "",
+          barcode_rev = ""
+        )
+      demultiplex_reads(
+        sample_manifest = manifest,
+        marker_info = marker_info,
+        reads_1 = sample_row$reads_1,
+        reads_2 = sample_row$reads_2,
+        output_dir = output_dir,
+        ...
+      )
     }) %>%
     write_rds(file.path(output_dir, "demultiplex.rds"))
 
@@ -112,7 +114,7 @@ demultiplex_reads <- function(sample_manifest,
                               reads_1,
                               reads_2,
                               output_dir,
-                              output_sub_dir = file.path(output_dir, 'demultiplex'),
+                              output_sub_dir = file.path(output_dir, "demultiplex"),
                               complete_only = TRUE,
                               trim_bc = TRUE,
                               trim_pr = TRUE,
@@ -125,7 +127,6 @@ demultiplex_reads <- function(sample_manifest,
                               degenerate_primers = TRUE,
                               suffix_1 = "R1.fastq.gz",
                               suffix_2 = "R2.fastq.gz") {
-
   # check args
   stopifnot(
     length(reads_1) >= 1L,
@@ -199,7 +200,7 @@ demultiplex_reads <- function(sample_manifest,
       n = integer()
     )
 
-  future_rng_opt <- getOption('future.rng.onMisuse')
+  future_rng_opt <- getOption("future.rng.onMisuse")
   options(future.rng.onMisuse = "ignore")
   on.exit(options(future.rng.onMisuse = future_rng_opt))
 
@@ -207,7 +208,9 @@ demultiplex_reads <- function(sample_manifest,
     future::makeClusterPSOCK(workers = 1),
     future::makeClusterPSOCK(workers = 1)
   )
-  on.exit({ walk(workers, parallel::stopCluster) })
+  on.exit({
+    walk(workers, parallel::stopCluster)
+  })
 
   worker_args <- list(
     list(
@@ -238,7 +241,8 @@ demultiplex_reads <- function(sample_manifest,
       {
         suppressWarnings(do.call(AmpSeqR:::thread_setup, a))
       },
-      workers = w
+      workers = w,
+      globals = structure(TRUE, add = list(a = a, w = w))
     )
   }) %>%
     future::value() %>%
@@ -251,7 +255,8 @@ demultiplex_reads <- function(sample_manifest,
           {
             AmpSeqR:::thread_read()
           },
-          workers = w
+          workers = w,
+          globals = structure(TRUE, add = list(w = w))
         )
       }) %>%
       map_dbl(future::value)
@@ -271,7 +276,8 @@ demultiplex_reads <- function(sample_manifest,
           {
             AmpSeqR:::thread_demultiplex()
           },
-          workers = w
+          workers = w,
+          globals = structure(TRUE, add = list(w = w))
         )
       }) %>%
       future::value()
@@ -346,7 +352,8 @@ demultiplex_reads <- function(sample_manifest,
         {
           AmpSeqR:::thread_write(d)
         },
-        workers = w
+        workers = w,
+        globals = structure(TRUE, add = list(d = d, w = w))
       )
     }) %>%
       future::value() %>%
@@ -359,7 +366,8 @@ demultiplex_reads <- function(sample_manifest,
       group_by(sample_id, marker_id, reads_1, reads_2) %>%
       summarise(n = sum(n), .groups = "drop") %>%
       left_join(sample_manifest %>% select(-barcode_fwd, -barcode_rev),
-                by = "sample_id")
+        by = "sample_id"
+      )
   }
 
   mutate(ret_tbl, success = !is.na(sample_id) & !is.na(marker_id)) %>%
@@ -453,10 +461,12 @@ match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
       if (length(match) > 0) {
         match_coord <-
           Biostrings::vmatchPattern(barcodes[[i]], sub[match], fixed = fixed) %>%
-          (function(x) tibble(
-            start = Biostrings::startIndex(x) %>% map_int(first),
-            end = Biostrings::endIndex(x) %>% map_int(first),
-          ))
+          (function(x) {
+            tibble(
+              start = Biostrings::startIndex(x) %>% map_int(first),
+              end = Biostrings::endIndex(x) %>% map_int(first),
+            )
+          })
         res$bc_index[sr_index[match]] <- i
         res$bc_start[sr_index[match]] <- match_coord$start
         res$bc_end[sr_index[match]] <- match_coord$end
@@ -479,13 +489,17 @@ match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
     pr_width <- width(primers[i])
     sub_range <-
       filter(res, is.na(pr_index)) %>%
-      mutate(start = if_else(!is.na(bc_end),
-                             bc_end + 1L,
-                             bc_width + 1L),
-             end = if_else(!is.na(bc_end),
-                           start + pr_width + max_gap_2,
-                           start + pr_width + max_gap_1 + max_gap_2),
-             end = pmin(end, width)) %>%
+      mutate(
+        start = if_else(!is.na(bc_end),
+          bc_end + 1L,
+          bc_width + 1L
+        ),
+        end = if_else(!is.na(bc_end),
+          start + pr_width + max_gap_2,
+          start + pr_width + max_gap_1 + max_gap_2
+        ),
+        end = pmin(end, width)
+      ) %>%
       filter(start + pr_width <= width) %>%
       select(sr_index, start, end)
     if (nrow(sub_range) == 0) {
@@ -499,10 +513,12 @@ match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
     }
     match_coord <-
       Biostrings::vmatchPattern(primers[[i]], sub[match], fixed = fixed, max.mismatch = max_mismatch) %>%
-      (function(x) tibble(
-        start = Biostrings::startIndex(x) %>% map_int(first),
-        end = Biostrings::endIndex(x) %>% map_int(first),
-      ))
+      (function(x) {
+        tibble(
+          start = Biostrings::startIndex(x) %>% map_int(first),
+          end = Biostrings::endIndex(x) %>% map_int(first),
+        )
+      })
     res$pr_index[sr_index[match]] <- i
     res$pr_start[sr_index[match]] <- match_coord$start + sub_range$start[match] - 1L
     res$pr_end[sr_index[match]] <- match_coord$end + sub_range$start[match] - 1L
