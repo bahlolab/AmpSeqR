@@ -22,14 +22,20 @@ Authors@R:
              family = "Obadia",
              role = c("ctb"),
              email = "tobadia@pasteur.fr"))
-Description: TBD.
-License: GPLv2
+Description: Tools for multi-locus sequence type identification from multiplexed amplicon deep sequencing data.
+License: GPL-2
 Encoding: UTF-8
-LazyData: true
+LazyData: false
 ByteCompile: true
-biocViews:
+biocViews: Sequencing, Genetics, Bioinformatics
 Imports: 
     Biostrings,
+    ShortRead,
+    dada2,
+    S4Vectors,
+    IRanges,
+    GenomicRanges,
+    VariantAnnotation,
     ComplexHeatmap,
     DECIPHER,
     DT,
@@ -54,7 +60,6 @@ Imports:
     viridisLite,
     withr,
     readr,
-    dada2,
     dplyr (>= 1.0.0),
     future,
     ggrepel,
@@ -66,15 +71,18 @@ Imports:
     parallel,
     purrr,
     rlang,
-    ShortRead,
     tidyr,
     dendextend,
     seriation,
-    digest,
-    VariantAnnotation,
-    S4Vectors,
-    GenomicRanges,
-    IRanges
-RoxygenNote: 7.2.3
-Suggests: 
+    digest
+Suggests:
     testthat (>= 2.1.0)
+Remotes:
+    bioc::Biostrings,
+    bioc::ShortRead,
+    bioc::dada2,
+    bioc::S4Vectors,
+    bioc::IRanges,
+    bioc::GenomicRanges,
+    bioc::VariantAnnotation
+RoxygenNote: 7.2.3
