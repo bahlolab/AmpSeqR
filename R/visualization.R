@@ -522,6 +522,7 @@ hap_seq_sim <- function(data, marker_info) {
 #' @importFrom scales hue_pal
 #' @importFrom ggtree ggtree geom_tiplab facet_plot facet_widths
 #' @importFrom ggstance geom_barh
+#' @importFrom ggplot2 aes scale_fill_manual scale_color_manual is.waive    
 hap_tree_plot <- function(data) {
   ggtree_data <- data %>%
     group_by(sample, marker_id) %>%
@@ -643,6 +644,7 @@ hap_tree_plot <- function(data) {
 #' @importFrom ggtree ggtree geom_tiplab facet_plot facet_widths theme_tree xlim_tree
 #' @importFrom ggstance geom_barh
 #' @importFrom digest digest
+#' @importFrom ggplot2 aes scale_fill_manual scale_color_manual is.waive
 hap_tree_plot_imputed <- function(data) {
   Mode <- function(x) {
     ux <- unique(x)
