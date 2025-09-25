@@ -236,139 +236,127 @@ demultiplex_reads <- function(sample_manifest,
   )
 
   # setup workers
-  map2(workers, worker_args, function(w, a) {
-    future::cluster(
-      {
-        suppressWarnings(do.call(AmpSeqR:::thread_setup, a))
-      },
-      workers = w,
-      globals = structure(TRUE, add = list(a = a, w = w))
+## ---- 1) Set up a PSOCK cluster with one node per worker_arg ----
+nworkers <- length(worker_args)
+stopifnot(nworkers >= 1)
+
+cl <- parallelly::makeClusterPSOCK(nworkers)
+on.exit(parallel::stopCluster(cl), add = TRUE)
+
+## Per-worker setup (one arg list per node; keeps state on that node)
+parallel::clusterMap(
+  cl,
+  fun = function(a) {
+    suppressWarnings(do.call(AmpSeqR:::thread_setup, a))
+    NULL
+  },
+  a = worker_args
+)
+
+## ---- 2) Processing loop with stable worker affinity ----
+repeat {
+  # Each node reports how many reads are queued
+  nr <- unlist(parallel::clusterCall(cl, AmpSeqR:::thread_read), use.names = FALSE)
+  
+  # Paired-end sanity check (assumes 2 workers for R1/R2; extend as needed)
+  if (length(unique(nr)) != 1L) {
+    rlang::abort("number or reads in reads_1 is not equal to number of reads in reads_2")
+  }
+  if (nr[1] == 0L) break
+  
+  # Each node demultiplexes its side; returns list(dm1, dm2, ...)
+  dm <- parallel::clusterCall(cl, AmpSeqR:::thread_demultiplex)
+  
+  # ---- Combine matched fwd/rev reads, split into sample markers ----
+  dm_tbl <-
+    full_join(dm[[1]], dm[[2]], by = "sr_index", suffix = c("_1", "_2")) %>%
+    filter(
+      replace_na(pr_end_1 < width_1, TRUE),
+      replace_na(pr_end_2 < width_2, TRUE)
+    ) %>%
+    left_join(sample_manifest_2, by = c("bc_index_1", "bc_index_2")) %>%
+    left_join(marker_info_2,    by = c("pr_index_1", "pr_index_2")) %>%
+    select(sample_id, sr_index, marker_id, pr_start_1, pr_start_2, pr_end_1, pr_end_2) %>%
+    chop(c(sr_index, pr_start_1, pr_start_2, pr_end_1, pr_end_2)) %>%
+    mutate(
+      is_complete = (!is.na(sample_id)) & (!is.na(marker_id)),
+      n          = lengths(sr_index),
+      prefix     = str_c("sample", replace_na(sample_id, "NA"),
+                         "marker", replace_na(marker_id, "NA"), sep = "_"),
+      reads_1    = file.path(output_sub_dir, str_c(prefix, "_", suffix_1)) %>%
+        replace(complete_only & (!is_complete), NA_character_),
+      reads_2    = file.path(output_sub_dir, str_c(prefix, "_", suffix_2)) %>%
+        replace(complete_only & (!is_complete), NA_character_),
+      mode       = if_else(reads_1 %in% ret_tbl$reads_1, "a", "w")
     )
-  }) %>%
-    future::value() %>%
-    invisible()
-
-  while (TRUE) {
-    nr <-
-      map(workers, function(w) {
-        future::cluster(
-          {
-            AmpSeqR:::thread_read()
-          },
-          workers = w,
-          globals = structure(TRUE, add = list(w = w))
-        )
-      }) %>%
-      map_dbl(future::value)
-
-    if (nr[1] != nr[2]) {
-      walk(workers, parallel::stopCluster)
-      rlang::abort("number or reads in reads_1 is not equal to number of reads in reads_2")
+  
+  # ---- Check for existing files in output directory ----
+  existing_files <-
+    dm_tbl %>%
+    filter(mode == "w") %>%
+    select(reads_1, reads_2) %>%
+    tidyr::pivot_longer(everything(), values_to = "value") %>%
+    filter(!is.na(value), file.exists(value)) %>%
+    pull(value)
+  
+  if (length(existing_files) > 0) {
+    if (isTRUE(overwrite)) {
+      invisible(file.remove(existing_files))
+    } else {
+      rlang::abort("some output files already exist and overwrite is set to FALSE")
     }
-
-    if (nr[1] == 0) {
-      break
-    }
-
-    dm <-
-      map(workers, function(w) {
-        future::cluster(
-          {
-            AmpSeqR:::thread_demultiplex()
-          },
-          workers = w,
-          globals = structure(TRUE, add = list(w = w))
-        )
-      }) %>%
-      future::value()
-
-    # combine matched fwd and rev reads, split into sample markers
-    dm_tbl <-
-      full_join(dm[[1]], dm[[2]], by = "sr_index", suffix = c("_1", "_2")) %>%
-      filter(
-        replace_na(pr_end_1 < width_1, TRUE),
-        replace_na(pr_end_2 < width_2, TRUE)
-      ) %>%
-      left_join(sample_manifest_2, by = c("bc_index_1", "bc_index_2")) %>%
-      left_join(marker_info_2, by = c("pr_index_1", "pr_index_2")) %>%
-      select(sample_id, sr_index, marker_id, pr_start_1, pr_start_2, pr_end_1, pr_end_2) %>%
-      chop(c(sr_index, pr_start_1, pr_start_2, pr_end_1, pr_end_2)) %>%
-      mutate(
-        is_complete = (!is.na(sample_id)) & (!is.na(marker_id)),
-        n = lengths(sr_index),
-        prefix = str_c("sample", replace_na(sample_id, "NA"), "marker", replace_na(marker_id, "NA"), sep = "_"),
-        reads_1 = file.path(output_sub_dir, str_c(prefix, "_", suffix_1)) %>% replace(complete_only & (!is_complete), NA_character_),
-        reads_2 = file.path(output_sub_dir, str_c(prefix, "_", suffix_2)) %>% replace(complete_only & (!is_complete), NA_character_),
-        mode = if_else(reads_1 %in% ret_tbl$reads_1, "a", "w")
-      )
-
-    # check for existing files in output directory
-    existing_files <-
-      dm_tbl %>%
-      filter(mode == "w") %>%
-      select(reads_1, reads_2) %>%
-      na.omit() %>%
-      gather() %>%
-      filter(file.exists(value)) %>%
-      pull(value)
-
-    if (length(existing_files) > 0) {
-      if (overwrite) {
-        invisible(file.remove(existing_files))
-      } else {
-        rlang::abort("some output files already exist and overwrite is set to FALSE")
-      }
-    }
-
-    write_table <-
-      dm_tbl %>%
-      filter(is_complete | (!complete_only)) %>%
-      (function(x) {
-        bind_rows(
-          mutate(x, start = case_when(
-            trim_pr & is_complete ~ map(pr_end_1, ~ . + 1),
-            trim_bc & is_complete ~ map(pr_start_1, ~.),
-            TRUE ~ map(n, ~ rep(1L, .))
-          )) %>%
-            select(marker_id, filename = reads_1, mode, sr_index, start, pr_end = pr_end_1) %>%
-            mutate(set = 1L),
-          mutate(x, start = case_when(
-            trim_pr & is_complete ~ map(pr_end_2, ~ . + 1),
-            trim_bc & is_complete ~ map(pr_start_2, ~.),
-            TRUE ~ map(n, ~ rep(1L, .))
-          )) %>%
-            select(marker_id, filename = reads_2, mode, sr_index, start, pr_end = pr_end_2) %>%
-            mutate(set = 2L),
-        )
-      }) %>%
-      left_join(marker_trim, "marker_id") %>%
-      mutate(end = map2(pr_end, trim_width, ~ .x + .y)) %>%
-      select(filename, mode, sr_index, start, end, set) %>%
-      split.data.frame(.$set)
-
-    # write output in each thread
-    map2(workers, write_table, function(w, d) {
-      future::cluster(
-        {
-          AmpSeqR:::thread_write(d)
-        },
-        workers = w,
-        globals = structure(TRUE, add = list(d = d, w = w))
+  }
+  
+  # ---- Build per-node write tables (set==1 goes to node 1, set==2 to node 2, etc.) ----
+  write_table <-
+    dm_tbl %>%
+    filter(is_complete | (!complete_only)) %>%
+    (function(x) {
+      bind_rows(
+        mutate(x, start = dplyr::case_when(
+          trim_pr & is_complete ~ purrr::map(pr_end_1, ~ . + 1L),
+          trim_bc & is_complete ~ purrr::map(pr_start_1, ~ .),
+          TRUE                  ~ purrr::map(n, ~ rep(1L, .))
+        )) %>%
+          select(marker_id, filename = reads_1, mode, sr_index, start, pr_end = pr_end_1) %>%
+          mutate(set = 1L),
+        mutate(x, start = dplyr::case_when(
+          trim_pr & is_complete ~ purrr::map(pr_end_2, ~ . + 1L),
+          trim_bc & is_complete ~ purrr::map(pr_start_2, ~ .),
+          TRUE                  ~ purrr::map(n, ~ rep(1L, .))
+        )) %>%
+          select(marker_id, filename = reads_2, mode, sr_index, start, pr_end = pr_end_2) %>%
+          mutate(set = 2L)
       )
     }) %>%
-      future::value() %>%
-      invisible()
+    left_join(marker_trim, by = "marker_id") %>%
+    mutate(end = map2(pr_end, trim_width, ~ .x + .y)) %>%
+    select(filename, mode, sr_index, start, end, set)
+  
+  # Split into a list of length nworkers; pad missing sets with empty frames
+  wt_split <- split(write_table, write_table$set)
+  empty_df <- write_table[0, c("filename","mode","sr_index","start","end","set")]
+  write_table_list <- lapply(seq_len(nworkers), function(i) wt_split[[as.character(i)]] %||% empty_df)
+  
+  # ---- Write on each node with its own chunk ----
+  parallel::clusterMap(
+    cl,
+    fun = function(d) {
+      AmpSeqR:::thread_write(d)
+      NULL
+    },
+    d = write_table_list
+  )
+  
+  # ---- Record results ----
+  ret_tbl <-
+    ret_tbl %>%
+    bind_rows(dm_tbl %>% select(sample_id, marker_id, reads_1, reads_2, n)) %>%
+    group_by(sample_id, marker_id, reads_1, reads_2) %>%
+    summarise(n = sum(n), .groups = "drop") %>%
+    left_join(sample_manifest %>% select(-barcode_fwd, -barcode_rev), by = "sample_id")
+}
 
-    # record results
-    ret_tbl <-
-      ret_tbl %>%
-      bind_rows(dm_tbl %>% select(sample_id, marker_id, reads_1, reads_2, n)) %>%
-      group_by(sample_id, marker_id, reads_1, reads_2) %>%
-      summarise(n = sum(n), .groups = "drop") %>%
-      left_join(sample_manifest %>% select(-barcode_fwd, -barcode_rev),
-        by = "sample_id"
-      )
-  }
 
   mutate(ret_tbl, success = !is.na(sample_id) & !is.na(marker_id)) %>%
     group_by(success) %>%
