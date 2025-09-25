@@ -105,7 +105,9 @@ demultiplex_marker_only <- function(sample_read_manifest,
 #' @importFrom Biostrings width DNAStringSet
 #' @importFrom dplyr select mutate left_join full_join group_by ungroup summarise filter if_else bind_rows case_when arrange pull
 #' @importFrom tidyr replace_na gather chop unnest
-#' @importFrom purrr map map_df map2 map_lgl walk
+#' @importFrom purrr map map_df map2 map_lgl walk map2_dbl
+#' @importFrom parallel clusterCall clusterMap stopCluster
+#' @importFrom parallelly makeClusterPSOCK
 #' @importFrom stringr str_c
 #' @importFrom magrittr "%>%"
 #' @importFrom readr write_rds
