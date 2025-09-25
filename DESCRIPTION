@@ -43,7 +43,7 @@ Imports:
     cowplot,
     flextable,
     furrr,
-    ggplot2,
+    ggplot2(>= 3.5.2),
     ggstance,
     ggtree,
     gtools,
