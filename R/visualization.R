@@ -613,7 +613,7 @@ hap_tree_plot <- function(data) {
       with(setNames(colour, marker)))
     p <- ggtree(stree) +
       geom_tiplab(
-        size = 3, align = TRUE,
+        size = 3, 
         offset = .8, hjust = .5
       ) + theme_tree()
 
@@ -767,7 +767,7 @@ hap_tree_plot_imputed <- function(data) {
 
     p <- ggtree(stree) +
       geom_tiplab(
-        size = 3, align = TRUE,
+        size = 3, 
         offset = .8, hjust = .5
       ) + theme_tree()
 
