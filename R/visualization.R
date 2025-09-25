@@ -869,7 +869,7 @@ hap_pca <- function(data) {
     p <- hap_pca %>%
       left_join(sample_info, by = "sample_id") %>%
       ggplot(aes(PC1, PC2, label = sample, col = info)) +
-      geom_jitter(alpha = 0.5) +
+      geom_jitter(alpha = 0.5,width = 0.005,height = 0.005) +
       theme_bw()
 
     ggplotly(p, tooltip = c("sample"))
@@ -980,7 +980,7 @@ hap_pca_imputed <- function(data) {
       left_join(sample_info, by = "sample_id") %>%
       mutate(info = ifelse(Type == "Missing-data-imputation", "Missing-data-imputation", info)) %>%
       ggplot(aes(PC1, PC2, label = sample_id, col = info)) +
-      geom_jitter(alpha = 0.5) +
+      geom_jitter(alpha = 0.5,width = 0.005,height = 0.005) +
       theme_bw() +
       theme(
         legend.position = "bottom"
