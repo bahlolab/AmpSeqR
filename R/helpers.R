@@ -290,6 +290,8 @@ add_status <- function(tbl, new_status) {
 #'
 #' @export
 #' @importFrom purrr pmap
+#' @importFrom future plan multisession sequential
+#' @importFrom parallel stopCluster
 downsample_reads <- function(read_table,
                              output_dir,
                              output_sub_dir,
@@ -323,61 +325,50 @@ downsample_reads <- function(read_table,
     ss <- seq_len(nrow(read_table))
   }
 
-  if (length(ss_at)) {
-    if (!dir.exists(output_sub_dir)) {
-      dir.create(output_sub_dir, recursive = T)
-    }
-    output_sub_dir <- normalizePath(output_sub_dir)
-
-    cluster <- `if`(
-      threads > 1,
-      future::makeClusterPSOCK(workers = threads),
-      NULL
-    )
-
-    ss <-
-      read_table %>%
-      dplyr::slice(ss_at) %>%
-      select(reads_1, reads_2) %>%
-      mutate(
-        reads_1_sub = file.path(output_sub_dir, basename(reads_1)),
-        reads_2_sub = file.path(output_sub_dir, basename(reads_2))
-      )
-
-    fs <-
-      ss %>%
-      pmap(function(reads_1, reads_1_sub, reads_2, reads_2_sub, ...) {
-        future::cluster(
-          {
-            AmpSeqR:::downsample(
-              reads_1 = reads_1,
-              reads_2 = reads_2,
-              reads_1_sub = reads_1_sub,
-              reads_2_sub = reads_2_sub,
-              n_sample = n_sample,
-              seed = seed
-            )
-          },
-          workers = cluster,
-          globals = structure(TRUE, add = list(
-            reads_1 = reads_1,
-            reads_1_sub = reads_1_sub,
-            reads_2 = reads_2,
-            reads_2_sub = reads_2_sub,
-            n_sample = n_sample,
-            seed = seed
-          ))
-        )
-      }) %>%
-      future::value()
-
-    read_table$reads_1[ss_at] <- ss$reads_1_sub
-    read_table$reads_2[ss_at] <- ss$reads_2_sub
-
-    if (threads > 1) {
-      parallel::stopCluster(cluster)
-    }
+ if (length(ss_at)) {
+  if (!dir.exists(output_sub_dir)) dir.create(output_sub_dir, recursive = TRUE)
+  output_sub_dir <- normalizePath(output_sub_dir)
+  
+  old_plan <- future::plan()                 # save current plan
+  on.exit(future::plan(old_plan), add = TRUE)
+  
+  if (threads > 1) {
+    # multisession works on all OSes (including Windows)
+    future::plan(future::multisession, workers = threads)
+  } else {
+    future::plan(future::sequential)
   }
+  
+  ss <- read_table %>%
+    dplyr::slice(ss_at) %>%
+    dplyr::select(reads_1, reads_2) %>%
+    dplyr::mutate(
+      reads_1_sub = file.path(output_sub_dir, basename(reads_1)),
+      reads_2_sub = file.path(output_sub_dir, basename(reads_2))
+    )
+  
+  # run downsample in parallel over rows
+  invisible(
+    furrr::future_pmap(
+      list(ss$reads_1, ss$reads_1_sub, ss$reads_2, ss$reads_2_sub),
+      function(reads_1, reads_1_sub, reads_2, reads_2_sub) {
+        AmpSeqR:::downsample(
+          reads_1 = reads_1,
+          reads_2 = reads_2,
+          reads_1_sub = reads_1_sub,
+          reads_2_sub = reads_2_sub,
+          n_sample = n_sample,
+          seed = seed
+        )
+        NULL
+      }
+    )
+  )
+  
+  read_table$reads_1[ss_at] <- ss$reads_1_sub
+  read_table$reads_2[ss_at] <- ss$reads_2_sub
+}
+
 
   read_table <- read_table %>%
     mutate(n = pmin(n_out, n_sample))
