@@ -156,6 +156,8 @@ calc_seq_ident <- function(seq_tbl, marker_info,
 #' @importFrom Biostrings DNAStringSet
 #' @importFrom purrr map map_lgl
 #' @importFrom tidyr nest unnest chop unchop
+#' @importFrom furrr future_map
+#' @importFrom future plan multisession sequential
 mark_chimeras <- function(seq_tbl,
                           threads = 1L,
                           max_breakpoints = 3L,
@@ -171,64 +173,43 @@ mark_chimeras <- function(seq_tbl,
   )
 
   check_seq_table(seq_tbl)
-
-  cluster <- `if`(
-    threads > 1,
-    future::makeClusterPSOCK(workers = threads),
-    NULL
-  )
-
+    # set parallel plan (no manual clusters)
+  old_plan <- future::plan()
+  on.exit(future::plan(old_plan), add = TRUE)
+  if (threads > 1L) {
+    future::plan(future::multisession, workers = threads)
+  } else {
+    future::plan(future::sequential)
+  }
+  
   chimeric <-
     seq_tbl %>%
     mutate(row = seq_len(n())) %>%
-    arrange(sample_id, marker_id, desc(count)) %>%
+    arrange(sample_id, marker_id, dplyr::desc(count)) %>%
     group_by(sample_id, marker_id) %>%
     filter(!pass_only | (status == "pass")) %>%
-    mutate(cand = map_lgl(seq_along(count), ~ sum(count >= min_parent_ratio * count[.]) > 1)) %>%
+    mutate(
+      cand = map_lgl(seq_along(count), ~ sum(count >= min_parent_ratio * count[.]) > 1)
+    ) %>%
     filter(any(cand)) %>%
-    (function(x) {
-      `if`(
-        nrow(x) > 0,
-        nest(x) %>%
-          ungroup() %>%
-          (function(y) {
-            `if`(
-              threads > 1,
-              mutate(y, group = seq_len(n()) %% threads) %>%
-                chop(-group) %>%
-                mutate(data = map(data, function(data) {
-                  future::cluster(
-                    {
-                      purrr::map(data, AmpSeqR:::mark_chimeras_mapper,
-                        max_breakpoints = max_breakpoints,
-                        min_parent_ratio = min_parent_ratio
-                      )
-                    },
-                    workers = cluster,
-                    globals = structure(TRUE, add = list(
-                      data = data,
-                      max_breakpoints = max_breakpoints,
-                      min_parent_ratio = min_parent_ratio
-                    ))
-                  )
-                }) %>% map(future::value)) %>%
-                unchop(-group) %>%
-                select(-group),
-              mutate(y, data = map(data, mark_chimeras_mapper,
-                max_breakpoints = max_breakpoints,
-                min_parent_ratio = min_parent_ratio
-              ))
-            )
-          }) %>%
-          unnest(data) %>%
-          filter(is_chimeric) %>%
-          pull(row),
-        integer(0)
+    nest() %>%
+    ungroup() %>%
+    # Parallel over each group's tibble
+    mutate(
+      data = furrr::future_map(
+        data,
+        ~ AmpSeqR:::mark_chimeras_mapper(
+          .x,
+          max_breakpoints = max_breakpoints,
+          min_parent_ratio = min_parent_ratio
+        )
       )
-    })
-
-  if (threads > 1) parallel::stopCluster(cluster)
-
+    ) %>%
+    unnest(data) %>%
+    filter(is_chimeric) %>%
+    pull(row)
+  
+  
   chim_tbl <-
     seq_tbl %>%
     add_status(if_else(seq_len(nrow(seq_tbl)) %in% chimeric, "chimera", "pass"))
