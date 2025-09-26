@@ -121,7 +121,10 @@ process_run <- function(reads_1,
   message("---- ASV estimation ----")
 
   seq_tbl <- sub_reads %>%
-    dada_seq_tbl(output_dir = run_dir)
+    dada_seq_tbl(output_dir = run_dir,
+                min_overlap = min_overlap,
+                marker_info = marker_info
+                )
 
   # annotate sequence variants
   seq_ann_tbl <- seq_tbl %>%
