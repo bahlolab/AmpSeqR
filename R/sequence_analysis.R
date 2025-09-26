@@ -182,32 +182,36 @@ mark_chimeras <- function(seq_tbl,
     future::plan(future::sequential)
   }
   
-  chimeric <-
-    seq_tbl %>%
-    mutate(row = seq_len(n())) %>%
-    arrange(sample_id, marker_id, dplyr::desc(count)) %>%
-    group_by(sample_id, marker_id) %>%
-    filter(!pass_only | (status == "pass")) %>%
-    mutate(
-      cand = map_lgl(seq_along(count), ~ sum(count >= min_parent_ratio * count[.]) > 1)
-    ) %>%
-    filter(any(cand)) %>%
-    nest() %>%
-    ungroup() %>%
-    # Parallel over each group's tibble
-    mutate(
-      data = furrr::future_map(
-        data,
-        ~ AmpSeqR:::mark_chimeras_mapper(
-          .x,
-          max_breakpoints = max_breakpoints,
-          min_parent_ratio = min_parent_ratio
+ chimeric <- seq_tbl %>%
+      mutate(row = seq_len(n())) %>%
+      arrange(sample_id, marker_id, dplyr::desc(count)) %>%
+      group_by(sample_id, marker_id) %>%
+      filter(!pass_only | (status == "pass")) %>%
+      mutate(cand = purrr::map_lgl(seq_along(count), ~ sum(count >= min_parent_ratio * count[.]) > 1)) %>%
+      filter(any(cand)) %>%
+      tidyr::nest() %>%
+      ungroup() %>%
+      mutate(
+        data = furrr::future_map(
+          data,
+          ~ AmpSeqR:::mark_chimeras_mapper(
+            .x,
+            max_breakpoints = max_breakpoints,
+            min_parent_ratio = min_parent_ratio
+          )
         )
-      )
-    ) %>%
-    unnest(data) %>%
-    filter(is_chimeric) %>%
-    pull(row)
+      ) %>%
+      # keep_empty=TRUE ensures rows are kept even if a group's mapper returns 0-row
+      tidyr::unnest(data, keep_empty = TRUE)
+    
+    # If empty or is_chimeric missing, short-circuit to no chimeras
+    if (nrow(chimeric) == 0L || !"is_chimeric" %in% names(chimeric)) {
+      chimeric_rows <- integer(0)
+    } else {
+      chimeric <- chimeric %>%
+        dplyr::filter(rlang::.data$is_chimeric %in% TRUE) %>%  # coerce logical, avoid non-TRUEs
+        dplyr::pull(row)
+    }
   
   
   chim_tbl <-
