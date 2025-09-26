@@ -209,8 +209,8 @@ mark_chimeras <- function(seq_tbl,
       chimeric_rows <- integer(0)
     } else {
       chimeric <- chimeric %>%
-        dplyr::filter(rlang::.data$is_chimeric %in% TRUE) %>%  # coerce logical, avoid non-TRUEs
-        dplyr::pull(row)
+      dplyr::filter(.data[["is_chimeric"]] %in% TRUE) %>%  # coerce logical, avoid non-TRUEs
+      dplyr::pull(row)
     }
   
   
