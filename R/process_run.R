@@ -100,7 +100,8 @@ process_run <- function(reads_1,
   flt_reads <- demultiplexed %>%
     dada_filter(
       output_dir = run_dir,
-      output_sub_dir = file.path(run_dir, "filter")
+      output_sub_dir = file.path(run_dir, "filter"),
+      marker_trim = marker_trim
     )
 
 
