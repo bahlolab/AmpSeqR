@@ -170,6 +170,12 @@ check_sample_manifest <- function(table) {
   arg_name <- "sample_manifest"
   check_character_table(table, req_cols, arg_name)
 
+  # If all barcode_fwd & barcode_rev are NA, allow and return early
+  if (all(is.na(table$barcode_fwd)) && all(is.na(table$barcode_rev))) {
+    message("No forward and reverse sample barcodes provided in sample_manifest")
+    return(invisible(TRUE))
+  }
+  
   nmax <-
     select(table, "sample_id", "barcode_fwd", "barcode_rev") %>%
     distinct() %>%
