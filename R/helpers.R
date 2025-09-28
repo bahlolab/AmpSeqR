@@ -367,7 +367,8 @@ downsample_reads <- function(read_table,
           seed = seed
         )
         NULL
-      }
+      },
+      .options = furrr::furrr_options(seed = TRUE)
     )
   )
   
