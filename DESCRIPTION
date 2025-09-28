@@ -65,7 +65,6 @@ Imports:
     ggrepel,
     tidyverse,
     ggsci,
-    hrbrthemes,
     R3port,
     magrittr,
     parallel,
