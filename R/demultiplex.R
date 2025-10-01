@@ -427,165 +427,257 @@ thread_write <- function(write_tbl) {
 #' @importFrom tibble tibble as_tibble
 # Fast version: vectorized, low-allocation, Biostrings-first
 match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
-                                      max_gap_1, max_gap_2, offset = 0L) {
-  # Preconditions & helpers
-  stopifnot(inherits(dss, "DNAStringSet"),
-            inherits(barcodes, "DNAStringSet"),
-            inherits(primers, "DNAStringSet"))
-  n <- length(dss)
-  w <- Biostrings::width(dss)
-  bc_width <- if (length(barcodes)) Biostrings::width(barcodes[1]) else 0L
-  
-  # Result vectors (preallocated; much faster than building tibbles and mutate)
-  sr_index <- seq_len(n)
-  bc_index <- rep(NA_integer_, n)
-  bc_start <- rep(NA_integer_, n)
-  bc_end   <- rep(NA_integer_, n)
-  pr_index <- rep(NA_integer_, n)
-  pr_start <- rep(NA_integer_, n)
-  pr_end   <- rep(NA_integer_, n)
-  
-  ## -------------------------
-  ## 1) BARCODE MATCH (exact, left-anchored window)
-  ## -------------------------
-  if (bc_width > 0L) {
-    # subset reads with enough length for barcode window
-    ok_bc <- which(w >= bc_width)
-    if (length(ok_bc)) {
-      # Views covering [1, bc_width + max_gap_1] for each ok read
-      bc_end_cap <- pmin.int(bc_width + max_gap_1, w[ok_bc])
-      bc_views <- Biostrings::Views(subject = dss[ok_bc], start = rep.int(1L, length(ok_bc)), end = bc_end_cap)
-      
-      # For exact matches, use a PDict; this vectorizes over barcodes
-      # (fast path only applies if 'fixed' implies exact matching)
-      # If 'fixed' is TRUE or c("pattern","subject") with exact semantics, this is safe.
-      # NOTE: barcodes are treated exact as in your original code.
-      pdict_bc <- Biostrings::PDict(barcodes)
-      # Count matrix: patterns x subjects (barcodes x reads)
-      # This is very fast and avoids per-pattern loops.
-      cm <- Biostrings::vcountPDict(pdict_bc, bc_views, max.mismatch = 0L, fixed = fixed)
-      
-      # First matching barcode per read (choose the first pattern with count > 0)
-      # We prefer the first barcode in the provided order, consistent with your loop.
-      has_hit <- colSums(cm > 0L) > 0L
-      if (any(has_hit)) {
-        hit_cols <- which(has_hit)
-        # vector of first barcode index per matched read
-        first_bc <- apply(cm[, hit_cols, drop = FALSE], 2L, function(z) {
-          ii <- which(z > 0L)
-          if (length(ii)) ii[1L] else NA_integer_
-        })
-        
-        # For coordinates, use vmatchPDict to get positions but only for matched barcodes
-        # This returns an MIndex list per barcode pattern over all subjects (views).
-        # We'll extract the first hit per matched subject.
-        mi <- Biostrings::vmatchPDict(pdict_bc, bc_views, max.mismatch = 0L, fixed = fixed)
-        # To avoid scanning everything, we only touch subjects that had hits.
-        for (j in seq_along(hit_cols)) {
-          col_j <- hit_cols[j]                 # subject index within ok_bc/views
-          pat_i <- first_bc[j]                 # chosen barcode index
-          if (is.na(pat_i)) next
-          hits_j <- mi[[pat_i]][[col_j]]
-          # Start/endIndex give IntegerList per subject; we take the first (your original code did the same)
-          s_idx <- Biostrings::startIndex(hits_j)
-          e_idx <- Biostrings::endIndex(hits_j)
-          if (length(s_idx)) {
-            ridx <- ok_bc[col_j]              # row in original dss
-            bc_index[ridx] <- pat_i
-            bc_start[ridx] <- s_idx[1L]
-            bc_end[ridx]   <- e_idx[1L]
-          }
+                                 max_gap_1, max_gap_2, offset = 0L) {
+  # TODO: allow non left anchored barcodes and primers
+
+  bc_width <- width(barcodes[1])
+
+  res <- tibble(
+    sr_index = seq_along(dss),
+    bc_index = NA_integer_,
+    bc_start = NA_integer_,
+    bc_end = NA_integer_,
+    pr_index = NA_integer_,
+    pr_start = NA_integer_,
+    pr_end = NA_integer_,
+    width = width(dss)
+  )
+
+  if (bc_width > 0) {
+    # match barcodes
+    sr_index <- res$sr_index[which(width(dss) >= bc_width)]
+    sub <- narrow(dss[sr_index], start = 1, end = pmin(bc_width + max_gap_1, width(dss[sr_index])))
+    for (i in seq_along(barcodes)) {
+      match <- which(vcountPattern(barcodes[[i]], sub, fixed = fixed) > 0)
+      if (length(match) > 0) {
+        match_coord <-
+          Biostrings::vmatchPattern(barcodes[[i]], sub[match], fixed = fixed) %>%
+          (function(x) {
+            tibble(
+              start = Biostrings::startIndex(x) %>% map_int(first),
+              end = Biostrings::endIndex(x) %>% map_int(first),
+            )
+          })
+        res$bc_index[sr_index[match]] <- i
+        res$bc_start[sr_index[match]] <- match_coord$start
+        res$bc_end[sr_index[match]] <- match_coord$end
+        sub <- sub[-match]
+        sr_index <- sr_index[-match]
+        if (length(sr_index) == 0L) {
+          break
         }
       }
     }
   } else {
-    # Empty barcode = match all
-    bc_index[] <- 1L
-    bc_start[] <- 0L
-    bc_end[]   <- 0L
+    # empty barcode matches all (i.e. unbarcoded sample)
+    res$bc_index <- 1L
+    res$bc_start <- 0L
+    res$bc_end <- 0L
   }
-  
-  ## -------------------------
-  ## 2) PRIMER MATCH (may allow mismatches)
-  ## -------------------------
-  # Determine per-read search windows for the primer search.
-  # If barcode was found, start after bc_end; else start after bc_width.
-  # end = start + primer_width + max_gap_2 (+ max_gap_1 if no BC)
-  # We do per-primer passes to use vectorized vcountPattern/vmatchPattern over the candidate views.
-  # Avoid tibble/dplyr entirely.
-  # For each primer i, compute candidate subranges only for reads with no primer yet.
+
+  # match primers
   for (i in seq_along(primers)) {
-    # Skip reads already assigned a primer
-    todo <- which(is.na(pr_index))
-    if (!length(todo)) break
-    
-    pr_w <- Biostrings::width(primers[i])
-    
-    # compute starts/ends
-    # start_if_bc = bc_end + 1; if bc_end is NA, we use bc_width + 1
-    has_bc <- !is.na(bc_end[todo])
-    start_vec <- integer(length(todo))
-    start_vec[has_bc]  <- bc_end[todo][has_bc] + 1L
-    start_vec[!has_bc] <- bc_width + 1L
-    
-    # per original logic: end depends on whether bc_end is known
-    end_vec <- integer(length(todo))
-    end_vec[has_bc]  <- start_vec[has_bc] + pr_w + max_gap_2
-    end_vec[!has_bc] <- start_vec[!has_bc] + pr_w + max_gap_1 + max_gap_2
-    
-    # clamp to read width
-    # also require start + pr_w <= width to be worth searching
-    end_vec <- pmin.int(end_vec, w[todo])
-    good <- which(start_vec + pr_w <= w[todo] & start_vec <= end_vec)
-    if (!length(good)) next
-    
-    idx <- todo[good]
-    # Build views for candidate regions
-    pv <- Biostrings::Views(dss[idx], start = start_vec[good], end = end_vec[good])
-    
-    # Vectorized count across candidate views
-    vc <- Biostrings::vcountPattern(primers[[i]], pv,
-                                    fixed = fixed, max.mismatch = max_mismatch)
-    hit <- which(vc > 0L)
-    if (!length(hit)) next
-    
-    # Get coordinates for the first hit in each candidate view
-    vmi <- Biostrings::vmatchPattern(primers[[i]], pv[hit],
-                                     fixed = fixed, max.mismatch = max_mismatch)
-    # Extract first start/end per subject
-    # startIndex/endIndex return IntegerList; we take the first element
-    s_list <- Biostrings::startIndex(vmi)
-    e_list <- Biostrings::endIndex(vmi)
-    
-    # Assign back to global vectors
-    for (k in seq_along(hit)) {
-      h <- hit[k]
-      ridx <- idx[h]  # original read index
-      s1 <- s_list[[k]][1L]
-      e1 <- e_list[[k]][1L]
-      if (!is.na(s1) && !is.na(e1)) {
-        pr_index[ridx] <- i
-        # absolute coordinates: add subrange start - 1
-        pr_start[ridx] <- s1 + start_vec[good][h] - 1L
-        pr_end[ridx]   <- e1 + start_vec[good][h] - 1L
-      }
+    pr_width <- width(primers[i])
+    sub_range <-
+      filter(res, is.na(pr_index)) %>%
+      mutate(
+        start = if_else(!is.na(bc_end),
+                        bc_end + 1L,
+                        bc_width + 1L
+        ),
+        end = if_else(!is.na(bc_end),
+                      start + pr_width + max_gap_2,
+                      start + pr_width + max_gap_1 + max_gap_2
+        ),
+        end = pmin(end, width)
+      ) %>%
+      filter(start + pr_width <= width) %>%
+      select(sr_index, start, end)
+    if (nrow(sub_range) == 0) {
+      next
     }
+    sr_index <- sub_range$sr_index
+    sub <- narrow(dss[sr_index], start = sub_range$start, end = sub_range$end)
+    match <- which(vcountPattern(primers[[i]], sub, fixed = fixed, max.mismatch = max_mismatch) > 0)
+    if (length(match) == 0) {
+      next
+    }
+    match_coord <-
+      Biostrings::vmatchPattern(primers[[i]], sub[match], fixed = fixed, max.mismatch = max_mismatch) %>%
+      (function(x) {
+        tibble(
+          start = Biostrings::startIndex(x) %>% map_int(first),
+          end = Biostrings::endIndex(x) %>% map_int(first),
+        )
+      })
+    res$pr_index[sr_index[match]] <- i
+    res$pr_start[sr_index[match]] <- match_coord$start + sub_range$start[match] - 1L
+    res$pr_end[sr_index[match]] <- match_coord$end + sub_range$start[match] - 1L
   }
-  
-  ## -------------------------
-  ## Build result tibble
-  ## -------------------------
-  tibble::tibble(
-    sr_index = sr_index + offset,
-    bc_index = bc_index,
-    bc_start = bc_start,
-    bc_end   = bc_end,
-    pr_index = pr_index,
-    pr_start = pr_start,
-    pr_end   = pr_end,
-    width    = w
-  )
+  res$sr_index <- res$sr_index + offset
+
+  return(res)
 }
+# match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
+#                                  max_gap_1, max_gap_2, offset = 0L) {
+#   # Preconditions & helpers
+#   stopifnot(inherits(dss, "DNAStringSet"),
+#             inherits(barcodes, "DNAStringSet"),
+#             inherits(primers, "DNAStringSet"))
+#   n <- length(dss)
+#   w <- Biostrings::width(dss)
+#   bc_width <- if (length(barcodes)) Biostrings::width(barcodes[1]) else 0L
+#   
+#   # Result vectors (preallocated; much faster than building tibbles and mutate)
+#   sr_index <- seq_len(n)
+#   bc_index <- rep(NA_integer_, n)
+#   bc_start <- rep(NA_integer_, n)
+#   bc_end   <- rep(NA_integer_, n)
+#   pr_index <- rep(NA_integer_, n)
+#   pr_start <- rep(NA_integer_, n)
+#   pr_end   <- rep(NA_integer_, n)
+#   
+#   ## -------------------------
+#   ## 1) BARCODE MATCH (exact, left-anchored window)
+#   ## -------------------------
+#   if (bc_width > 0L) {
+#     # subset reads with enough length for barcode window
+#     ok_bc <- which(w >= bc_width)
+#     if (length(ok_bc)) {
+#       # Views covering [1, bc_width + max_gap_1] for each ok read
+#       bc_end_cap <- pmin.int(bc_width + max_gap_1, w[ok_bc])
+#       bc_views <- Biostrings::Views(subject = dss[ok_bc], start = rep.int(1L, length(ok_bc)), end = bc_end_cap)
+#       
+#       # For exact matches, use a PDict; this vectorizes over barcodes
+#       # (fast path only applies if 'fixed' implies exact matching)
+#       # If 'fixed' is TRUE or c("pattern","subject") with exact semantics, this is safe.
+#       # NOTE: barcodes are treated exact as in your original code.
+#       pdict_bc <- Biostrings::PDict(barcodes)
+#       # Count matrix: patterns x subjects (barcodes x reads)
+#       # This is very fast and avoids per-pattern loops.
+#       cm <- Biostrings::vcountPDict(pdict_bc, bc_views, max.mismatch = 0L, fixed = fixed)
+#       
+#       # First matching barcode per read (choose the first pattern with count > 0)
+#       # We prefer the first barcode in the provided order, consistent with your loop.
+#       has_hit <- colSums(cm > 0L) > 0L
+#       if (any(has_hit)) {
+#         hit_cols <- which(has_hit)
+#         # vector of first barcode index per matched read
+#         first_bc <- apply(cm[, hit_cols, drop = FALSE], 2L, function(z) {
+#           ii <- which(z > 0L)
+#           if (length(ii)) ii[1L] else NA_integer_
+#         })
+#         
+#         # For coordinates, use vmatchPDict to get positions but only for matched barcodes
+#         # This returns an MIndex list per barcode pattern over all subjects (views).
+#         # We'll extract the first hit per matched subject.
+#         mi <- Biostrings::vmatchPDict(pdict_bc, bc_views, max.mismatch = 0L, fixed = fixed)
+#         # To avoid scanning everything, we only touch subjects that had hits.
+#         for (j in seq_along(hit_cols)) {
+#           col_j <- hit_cols[j]                 # subject index within ok_bc/views
+#           pat_i <- first_bc[j]                 # chosen barcode index
+#           if (is.na(pat_i)) next
+#           hits_j <- mi[[pat_i]][[col_j]]
+#           # Start/endIndex give IntegerList per subject; we take the first (your original code did the same)
+#           s_idx <- Biostrings::startIndex(hits_j)
+#           e_idx <- Biostrings::endIndex(hits_j)
+#           if (length(s_idx)) {
+#             ridx <- ok_bc[col_j]              # row in original dss
+#             bc_index[ridx] <- pat_i
+#             bc_start[ridx] <- s_idx[1L]
+#             bc_end[ridx]   <- e_idx[1L]
+#           }
+#         }
+#       }
+#     }
+#   } else {
+#     # Empty barcode = match all
+#     bc_index[] <- 1L
+#     bc_start[] <- 0L
+#     bc_end[]   <- 0L
+#   }
+#   
+#   ## -------------------------
+#   ## 2) PRIMER MATCH (may allow mismatches)
+#   ## -------------------------
+#   # Determine per-read search windows for the primer search.
+#   # If barcode was found, start after bc_end; else start after bc_width.
+#   # end = start + primer_width + max_gap_2 (+ max_gap_1 if no BC)
+#   # We do per-primer passes to use vectorized vcountPattern/vmatchPattern over the candidate views.
+#   # Avoid tibble/dplyr entirely.
+#   # For each primer i, compute candidate subranges only for reads with no primer yet.
+#   for (i in seq_along(primers)) {
+#     # Skip reads already assigned a primer
+#     todo <- which(is.na(pr_index))
+#     if (!length(todo)) break
+#     
+#     pr_w <- Biostrings::width(primers[i])
+#     
+#     # compute starts/ends
+#     # start_if_bc = bc_end + 1; if bc_end is NA, we use bc_width + 1
+#     has_bc <- !is.na(bc_end[todo])
+#     start_vec <- integer(length(todo))
+#     start_vec[has_bc]  <- bc_end[todo][has_bc] + 1L
+#     start_vec[!has_bc] <- bc_width + 1L
+#     
+#     # per original logic: end depends on whether bc_end is known
+#     end_vec <- integer(length(todo))
+#     end_vec[has_bc]  <- start_vec[has_bc] + pr_w + max_gap_2
+#     end_vec[!has_bc] <- start_vec[!has_bc] + pr_w + max_gap_1 + max_gap_2
+#     
+#     # clamp to read width
+#     # also require start + pr_w <= width to be worth searching
+#     end_vec <- pmin.int(end_vec, w[todo])
+#     good <- which(start_vec + pr_w <= w[todo] & start_vec <= end_vec)
+#     if (!length(good)) next
+#     
+#     idx <- todo[good]
+#     # Build views for candidate regions
+#     pv <- Biostrings::Views(dss[idx], start = start_vec[good], end = end_vec[good])
+#     
+#     # Vectorized count across candidate views
+#     vc <- Biostrings::vcountPattern(primers[[i]], pv,
+#                                     fixed = fixed, max.mismatch = max_mismatch)
+#     hit <- which(vc > 0L)
+#     if (!length(hit)) next
+#     
+#     # Get coordinates for the first hit in each candidate view
+#     vmi <- Biostrings::vmatchPattern(primers[[i]], pv[hit],
+#                                      fixed = fixed, max.mismatch = max_mismatch)
+#     # Extract first start/end per subject
+#     # startIndex/endIndex return IntegerList; we take the first element
+#     s_list <- Biostrings::startIndex(vmi)
+#     e_list <- Biostrings::endIndex(vmi)
+#     
+#     # Assign back to global vectors
+#     for (k in seq_along(hit)) {
+#       h <- hit[k]
+#       ridx <- idx[h]  # original read index
+#       s1 <- s_list[[k]][1L]
+#       e1 <- e_list[[k]][1L]
+#       if (!is.na(s1) && !is.na(e1)) {
+#         pr_index[ridx] <- i
+#         # absolute coordinates: add subrange start - 1
+#         pr_start[ridx] <- s1 + start_vec[good][h] - 1L
+#         pr_end[ridx]   <- e1 + start_vec[good][h] - 1L
+#       }
+#     }
+#   }
+#   
+#   ## -------------------------
+#   ## Build result tibble
+#   ## -------------------------
+#   tibble::tibble(
+#     sr_index = sr_index + offset,
+#     bc_index = bc_index,
+#     bc_start = bc_start,
+#     bc_end   = bc_end,
+#     pr_index = pr_index,
+#     pr_start = pr_start,
+#     pr_end   = pr_end,
+#     width    = w
+#   )
+# }
 # match_barcode_primer <- function(dss, barcodes, primers, fixed, max_mismatch,
 #                                  max_gap_1, max_gap_2, offset = 0L) {
 #   # TODO: allow non left anchored barcodes and primers
