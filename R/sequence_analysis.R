@@ -23,7 +23,7 @@
 annotate_seq_tbl <- function(seq_tbl,
                              marker_info,
                              output_dir = NULL,
-                             threads = 8L,
+                             threads = min(parallelly::availableCores(), 8),
                              min_marker_count = 100L,
                              min_asv_count = 5L,
                              min_asv_freq = 1e-3,

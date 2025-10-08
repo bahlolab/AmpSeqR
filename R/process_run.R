@@ -113,8 +113,7 @@ process_run <- function(reads_1,
       output_sub_dir = file.path(run_dir, "downsample"),
       n_sample = n_sample,
       min_read_count = min_read_count,
-      count_col = "n_out",
-      threads = 8
+      count_col = "n_out"
     )
 
 

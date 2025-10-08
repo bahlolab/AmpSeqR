@@ -304,7 +304,7 @@ downsample_reads <- function(read_table,
                              min_read_count = 1000,
                              n_sample = 10000,
                              seed = 1L,
-                             threads = 2L,
+                             threads = min(parallelly::availableCores(), 8),
                              count_col = NULL) {
   stopifnot(
     is_scalar_character(output_dir),
