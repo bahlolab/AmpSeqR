@@ -31,4 +31,4 @@ See the [introduction vignette](vignettes/AmpSeqR.md) for usage examples.
 ### Support and Contact
 AmpSeqR is actively maintained.  
 If you encounter any issues or have questions, please open an issue on [GitHub](https://github.com/bahlolab/AmpSeqR/issues)  
-or contact the corresponding author: **Jiru Han (han.ji@wehi.edu.au)**
+or email us: **Jiru Han (han.ji@wehi.edu.au)**
